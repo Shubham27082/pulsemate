@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "PulseMate",
+    "slug": "pulsemate-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#2563EB",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2563EB"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pulsemate.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used for profile photo",
+        "NSPhotoLibraryUsageDescription": "Used for profile photo"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#2563EB"
+      },
+      "package": "com.pulsemate.app",
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "pulsemate",
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

@@ -1,0 +1,379 @@
+// PulseMate - Prisma Schema
+// Healthcare Appointment + Live Queue Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  CLINIC_OWNER
+  DOCTOR
+  RECEPTIONIST
+  PATIENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AppointmentType {
+  ONLINE
+  OFFLINE
+}
+
+enum AppointmentStatus {
+  PENDING_PAYMENT
+  BOOKED
+  CHECKED_IN
+  IN_QUEUE
+  IN_CONSULTATION
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum QueueStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum QueueItemStatus {
+  WAITING
+  CALLED
+  IN_CONSULTATION
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum OtpPurpose {
+  LOGIN
+  SIGNUP
+  RESET_PASSWORD
+  VERIFY_MOBILE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  CASH
+  UPI
+}
+
+enum StaffRole {
+  OWNER
+  DOCTOR
+  RECEPTIONIST
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String?
+  mobile       String   @unique
+  email        String?  @unique
+  role         Role     @default(PATIENT)
+  passwordHash String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  patientProfile  PatientProfile?
+  doctorProfile   DoctorProfile?
+  ownedClinics    Clinic[]         @relation("ClinicOwner")
+  clinicStaff     ClinicStaff[]
+  appointments    Appointment[]    @relation("PatientAppointments")
+  refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]
+  queueItems      QueueItem[]      @relation("PatientQueueItems")
+  prescriptions   Prescription[]   @relation("PatientPrescriptions")
+  payments        Payment[]        @relation("PatientPayments")
+  fcmTokens       FcmToken[]
+
+  @@map("users")
+}
+
+model PatientProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  age               Int?
+  dob               DateTime?
+  gender            Gender?
+  address           String?
+  city              String?
+  emergencyContact  String?
+  bloodGroup        String?
+  allergies         String?
+  existingDiseases  String?
+  insuranceProvider String?
+  profileCompleted  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("patient_profiles")
+}
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  ownerId     String
+  phone       String?
+  address     String?
+  city        String?
+  latitude    Float?
+  longitude   Float?
+  isVerified  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  openingTime String?  // "09:00"
+  closingTime String?  // "18:00"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner        User          @relation("ClinicOwner", fields: [ownerId], references: [id])
+  staff        ClinicStaff[]
+  doctorClinics DoctorClinic[]
+  appointments Appointment[]
+  queues       Queue[]
+
+  @@map("clinics")
+}
+
+model ClinicStaff {
+  id        String    @id @default(uuid())
+  clinicId  String
+  userId    String
+  role      StaffRole
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+  @@map("clinic_staff")
+}
+
+model DoctorProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  specialization      String?
+  experienceYears     Int?     @default(0)
+  education           String?
+  consultationFee     Float?   @default(0)
+  onlineAvailable     Boolean  @default(false)
+  offlineAvailable    Boolean  @default(true)
+  bio                 String?
+  avgConsultationMins Int      @default(10)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctorClinics DoctorClinic[]
+  appointments  Appointment[]
+  queues        Queue[]
+  prescriptions Prescription[]
+
+  @@map("doctor_profiles")
+}
+
+model DoctorClinic {
+  id                   String   @id @default(uuid())
+  doctorId             String   // references DoctorProfile.id
+  clinicId             String
+  consultationFee      Float?
+  availableDays        String[] // ["MON","TUE","WED"]
+  startTime            String?  // "09:00"
+  endTime              String?  // "17:00"
+  avgConsultationMins  Int      @default(10)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  doctor DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, clinicId])
+  @@map("doctor_clinics")
+}
+
+model Appointment {
+  id                   String            @id @default(uuid())
+  patientId            String
+  doctorId             String            // references DoctorProfile.id
+  clinicId             String
+  appointmentType      AppointmentType   @default(OFFLINE)
+  appointmentDate      DateTime
+  slotTime             String?           // "10:30"
+  status               AppointmentStatus @default(BOOKED)
+  queueNumber          Int?
+  estimatedWaitMinutes Int?
+  symptoms             String?
+  notes                String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  patient   User          @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor    DoctorProfile @relation(fields: [doctorId], references: [id])
+  clinic    Clinic        @relation(fields: [clinicId], references: [id])
+  queueItem QueueItem?
+  prescription Prescription?
+  payment   Payment?
+
+  @@map("appointments")
+}
+
+model Queue {
+  id       String      @id @default(uuid())
+  clinicId String
+  doctorId String      // references DoctorProfile.id
+  date     DateTime    @db.Date
+  status   QueueStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  clinic     Clinic        @relation(fields: [clinicId], references: [id])
+  doctor     DoctorProfile @relation(fields: [doctorId], references: [id])
+  queueItems QueueItem[]
+
+  @@unique([clinicId, doctorId, date])
+  @@map("queues")
+}
+
+model QueueItem {
+  id            String          @id @default(uuid())
+  queueId       String
+  appointmentId String?         @unique
+  patientId     String
+  queueNumber   Int
+  status        QueueItemStatus @default(WAITING)
+  position      Int
+  isFollowUp    Boolean         @default(false)  // true for return/follow-up patients
+  followUpOf    String?                           // original appointmentId this follows up from
+  calledAt      DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  queue       Queue        @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  patient     User         @relation("PatientQueueItems", fields: [patientId], references: [id])
+
+  @@map("queue_items")
+}
+
+model Otp {
+  id        String     @id @default(uuid())
+  mobile    String
+  otpHash   String
+  purpose   OtpPurpose @default(LOGIN)
+  expiresAt DateTime
+  attempts  Int        @default(0)
+  verified  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@map("otps")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Prescription {
+  id            String   @id @default(uuid())
+  appointmentId String   @unique
+  doctorId      String   // references DoctorProfile.id
+  patientId     String
+  diagnosis     String?
+  medicines     Json     // [{ name, dosage, frequency, duration, notes }]
+  instructions  String?
+  followUpDate  DateTime?
+  requiresFollowUp Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  appointment Appointment   @relation(fields: [appointmentId], references: [id])
+  doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
+  patient     User          @relation("PatientPrescriptions", fields: [patientId], references: [id])
+
+  @@map("prescriptions")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  appointmentId   String        @unique
+  patientId       String
+  amount          Float
+  status          PaymentStatus @default(PENDING)
+  method          PaymentMethod @default(RAZORPAY)
+  razorpayOrderId String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  patient     User        @relation("PatientPayments", fields: [patientId], references: [id])
+
+  @@map("payments")
+}
+
+model FcmToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String?  // 'web', 'android', 'ios'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("fcm_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
