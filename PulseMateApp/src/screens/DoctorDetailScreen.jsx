@@ -63,10 +63,6 @@ export default function DoctorDetailScreen({ route, navigation }) {
         {/* Stats */}
         <View style={s.statsRow}>
           <View style={s.statBox}>
-            <Text style={s.statVal}>₹{doctor.consultationFee || 0}</Text>
-            <Text style={s.statLabel}>Consultation Fee</Text>
-          </View>
-          <View style={s.statBox}>
             <Text style={s.statVal}>{doctor.avgConsultationMins || 10} min</Text>
             <Text style={s.statLabel}>Avg. Time</Text>
           </View>

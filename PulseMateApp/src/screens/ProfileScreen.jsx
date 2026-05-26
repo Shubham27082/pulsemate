@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getPatientProfile, getMyAppointments, getMyPrescriptions } from '../api/patient';
+import { getPatientProfile } from '../api/patient';
 import { logout, getMyNotifications } from '../api/auth';
 import { useAuth } from '../store/authStore';
 import { colors, shadow, radius } from '../theme';
@@ -29,25 +29,18 @@ const MENU = [
 export default function ProfileScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const [profile, setProfile]   = useState(null);
-  const [stats, setStats]       = useState({ appointments: 0, prescriptions: 0 });
+
   const [unread, setUnread]     = useState(0);
   const [loading, setLoading]   = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [profRes, apptRes, rxRes, notifRes] = await Promise.all([
+      const [profRes, notifRes] = await Promise.all([
         getPatientProfile(),
-        getMyAppointments({ limit: 100 }),
-        getMyPrescriptions({ limit: 100 }),
         getMyNotifications().catch(() => null),
       ]);
       const u = profRes.data.data.user;
       setProfile(u);
-
-      const apptTotal = apptRes.data.pagination?.total ?? (apptRes.data.data?.length || 0);
-      const rxData    = rxRes.data.data;
-      const rxTotal   = rxData?.total ?? rxData?.prescriptions?.length ?? (Array.isArray(rxData) ? rxData.length : 0);
-      setStats({ appointments: apptTotal, prescriptions: rxTotal });
 
       if (notifRes) setUnread(notifRes.data.data?.unreadCount || 0);
     } catch {}
@@ -96,13 +89,6 @@ export default function ProfileScreen({ navigation }) {
   // Only show location parts that actually exist
   const locParts = [p?.city, p?.city ? 'Maharashtra' : null, 'India'].filter(Boolean);
   const loc = locParts.join(', ');
-
-  const STATS = [
-    { icon: 'calendar-outline',  label: 'Appointments',  val: stats.appointments,  color: '#2563EB', bg: '#EFF6FF' },
-    { icon: 'receipt-outline',   label: 'Prescriptions', val: stats.prescriptions, color: '#10B981', bg: '#ECFDF5' },
-    { icon: 'heart-outline',     label: 'Health Records',val: stats.prescriptions, color: '#EF4444', bg: '#FEF2F2' },
-    { icon: 'star-outline',      label: 'Saved Doctors', val: 0,                   color: '#F59E0B', bg: '#FFFBEB' },
-  ];
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -185,19 +171,6 @@ export default function ProfileScreen({ navigation }) {
                   <Ionicons name="create-outline" size={14} color={colors.primary} />
                   <Text style={s.editBtnTxt}>Edit Profile</Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* Stats row */}
-              <View style={s.statsRow}>
-                {STATS.map((st, i) => (
-                  <View key={st.label} style={[s.statItem, i < STATS.length - 1 && s.statBorder]}>
-                    <View style={[s.statIcon, { backgroundColor: st.bg }]}>
-                      <Ionicons name={st.icon} size={18} color={st.color} />
-                    </View>
-                    <Text style={s.statVal}>{st.val}</Text>
-                    <Text style={s.statLabel}>{st.label}</Text>
-                  </View>
-                ))}
               </View>
             </View>
 
@@ -286,13 +259,7 @@ const s = StyleSheet.create({
   editBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: colors.primary, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start' },
   editBtnTxt:    { fontSize: 12, fontWeight: '700', color: colors.primary },
 
-  // Stats
-  statsRow:      { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14 },
-  statItem:      { flex: 1, alignItems: 'center', gap: 4 },
-  statBorder:    { borderRightWidth: 1, borderRightColor: colors.border },
-  statIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  statVal:       { fontSize: 18, fontWeight: '800', color: colors.text },
-  statLabel:     { fontSize: 10, color: colors.textMuted, textAlign: 'center' },
+  // Stats (removed)
 
   // Quick links
   quickCard:     { backgroundColor: '#fff', marginHorizontal: 16, borderRadius: radius.xl, padding: 16, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, ...shadow.sm },

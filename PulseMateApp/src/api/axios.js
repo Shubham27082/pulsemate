@@ -6,7 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 // iOS simulator    : 'http://localhost:5000/api'
 // Real device      : 'http://<YOUR_MACHINE_LAN_IP>:5000/api'
 //                    (run `ipconfig` on Windows / `ifconfig` on Mac to find it)
-export const BASE_URL = 'http://192.168.1.11:5000/api';
+export const BASE_URL = 'http://192.168.31.240:5000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

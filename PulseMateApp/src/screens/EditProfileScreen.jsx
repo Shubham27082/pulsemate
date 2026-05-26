@@ -34,10 +34,10 @@ export default function EditProfileScreen({ route, navigation }) {
         name:             form.name || undefined,
         gender:           form.gender || undefined,
         dob:              form.dob || undefined,
-        bloodGroup:       form.bloodGroup || undefined,
+        bloodGroup:       form.bloodGroup,        // send empty string so backend can clear it
         emergencyContact: form.emergencyContact || undefined,
-        allergies:        form.allergies || undefined,
-        existingDiseases: form.existingDiseases || undefined,
+        allergies:        form.allergies,          // send empty string so backend can clear it
+        existingDiseases: form.existingDiseases,   // send empty string so backend can clear it
       });
       updateUser({ name: res.data.data.user.name });
       Alert.alert('Saved', 'Profile updated successfully', [

@@ -64,10 +64,10 @@ const PatientProfile = () => {
         name:             formData.name || undefined,
         gender:           formData.gender || undefined,
         dob:              formData.dob || undefined,
-        bloodGroup:       formData.bloodGroup || undefined,
+        bloodGroup:       formData.bloodGroup,        // send empty string so backend can clear it
         emergencyContact: formData.emergencyContact || undefined,
-        allergies:        formData.allergies || undefined,
-        existingDiseases: formData.existingDiseases || undefined,
+        allergies:        formData.allergies,          // send empty string so backend can clear it
+        existingDiseases: formData.existingDiseases,   // send empty string so backend can clear it
       });
       const user = res.data.data.user;
       setProfile(user);

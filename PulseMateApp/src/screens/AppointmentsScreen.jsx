@@ -122,6 +122,7 @@ export default function AppointmentsScreen({ navigation }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.filterRow}
+        style={s.filterScroll}
       >
         {FILTERS.map((f) => {
           const active = filter === f.key;
@@ -384,7 +385,8 @@ const s = StyleSheet.create({
   bookNewBtn:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, ...shadow.sm },
   bookNewText:      { fontSize: 13, fontWeight: '700', color: colors.primary },
 
-  // Filter tabs — KEY FIX: fixed height, no vertical expansion
+  // Filter tabs
+  filterScroll:     { flexGrow: 0, flexShrink: 0 },
   filterRow:        { paddingHorizontal: 20, paddingBottom: 14, gap: 8, alignItems: 'center' },
   filterChip:       { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 14, borderRadius: radius.full, backgroundColor: '#fff', borderWidth: 1.5, borderColor: colors.border },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },

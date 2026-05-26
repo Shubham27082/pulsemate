@@ -74,10 +74,6 @@ const DoctorProfile = () => {
                   <span>{doctor.experienceYears} years experience</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-sm text-text-muted">
-                  <span>💰</span>
-                  <span>₹{doctor.consultationFee} consultation</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-sm text-text-muted">
                   <span>⏱️</span>
                   <span>~{doctor.avgConsultationMins} min per patient</span>
                 </div>
@@ -117,7 +113,6 @@ const DoctorProfile = () => {
                       )}
                       <div className="flex flex-wrap gap-3 mt-2 text-sm text-text-muted">
                         <span>🕐 {dc.startTime} - {dc.endTime}</span>
-                        <span>💰 ₹{dc.consultationFee || doctor.consultationFee}</span>
                         <span>📅 {dc.availableDays?.join(', ')}</span>
                       </div>
                     </div>

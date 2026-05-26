@@ -157,10 +157,6 @@ const DoctorCard = ({ doctor }) => {
 
       <div className="mt-4 pt-4 border-t border-border">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-text-muted">Consultation Fee</p>
-            <p className="font-semibold text-text-primary">₹{doctor.consultationFee || 0}</p>
-          </div>
           <div className="flex gap-1">
             {doctor.offlineAvailable && (
               <span className="badge badge-success">Offline</span>

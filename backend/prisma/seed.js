@@ -55,20 +55,20 @@ async function main() {
   // ─── Dr. Pooja ────────────────────────────────────────────────────────────
   const doctorPooja = await prisma.user.create({
     data: {
-      name: 'Dr. Pooja',
+      name: 'Pooja',
       mobile: '+919000000011',
       email: 'pooja@pulsemate.com',
       role: 'DOCTOR',
       passwordHash,
       doctorProfile: {
         create: {
-          specialization: 'Dermatologist',
+          specialization: 'Physiotherapy',
           experienceYears: 6,
-          education: 'MBBS, MD - Dermatology',
+          education: 'BPT - Bachelor of Physiotherapy',
           consultationFee: 600,
           onlineAvailable: true,
           offlineAvailable: true,
-          bio: 'Dermatologist specializing in skin care and cosmetic procedures.',
+          bio: 'Physiotherapist specializing in rehabilitation and pain management.',
           avgConsultationMins: 25,
         },
       },
@@ -76,6 +76,31 @@ async function main() {
     include: { doctorProfile: true },
   });
   console.log('✅ Dr. Pooja:', doctorPooja.mobile);
+
+  // ─── Dr. Arjun Upadhyay ───────────────────────────────────────────────────
+  const doctorArjun = await prisma.user.create({
+    data: {
+      name: 'Arjun Upadhyay',
+      mobile: '+919000000013',
+      email: 'arjun@pulsemate.com',
+      role: 'DOCTOR',
+      passwordHash,
+      doctorProfile: {
+        create: {
+          specialization: 'Physiotherapy',
+          experienceYears: 8,
+          education: 'MPT - Master of Physiotherapy',
+          consultationFee: 600,
+          onlineAvailable: false,
+          offlineAvailable: true,
+          bio: 'Senior physiotherapist with expertise in spine rehabilitation and musculoskeletal disorders.',
+          avgConsultationMins: 30,
+        },
+      },
+    },
+    include: { doctorProfile: true },
+  });
+  console.log('✅ Dr. Arjun Upadhyay:', doctorArjun.mobile);
 
   // ─── Receptionist ─────────────────────────────────────────────────────────
   const receptionist = await prisma.user.create({
@@ -163,38 +188,50 @@ async function main() {
   // ─── Clinic Staff ─────────────────────────────────────────────────────────
   await prisma.clinicStaff.createMany({
     data: [
-      { clinicId: clinic.id, userId: clinicOwner.id, role: 'OWNER' },
-      { clinicId: clinic.id, userId: doctorPooja.id, role: 'DOCTOR' },
-      { clinicId: clinic.id, userId: receptionist.id, role: 'RECEPTIONIST' },
+      { clinicId: clinic.id, userId: clinicOwner.id,   role: 'OWNER'        },
+      { clinicId: clinic.id, userId: doctorPooja.id,   role: 'DOCTOR'       },
+      { clinicId: clinic.id, userId: doctorArjun.id,   role: 'DOCTOR'       },
+      { clinicId: clinic.id, userId: receptionist.id,  role: 'RECEPTIONIST' },
     ],
   });
   console.log('✅ Clinic staff linked');
 
-  // ─── Doctor-Clinic Link ───────────────────────────────────────────────────
-  await prisma.doctorClinic.create({
-    data: {
-      doctorId: doctorPooja.doctorProfile.id,
-      clinicId: clinic.id,
-      consultationFee: 600,
-      availableDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
-      startTime: '09:00',
-      endTime: '18:00',
-      avgConsultationMins: 25,
-    },
+  // ─── Doctor-Clinic Links ──────────────────────────────────────────────────
+  await prisma.doctorClinic.createMany({
+    data: [
+      {
+        doctorId: doctorPooja.doctorProfile.id,
+        clinicId: clinic.id,
+        consultationFee: 600,
+        availableDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+        startTime: '09:00',
+        endTime: '18:00',
+        avgConsultationMins: 25,
+      },
+      {
+        doctorId: doctorArjun.doctorProfile.id,
+        clinicId: clinic.id,
+        consultationFee: 600,
+        availableDays: ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+        startTime: '10:00',
+        endTime: '19:00',
+        avgConsultationMins: 30,
+      },
+    ],
   });
-  console.log('✅ Doctor-Clinic link created');
+  console.log('✅ Doctor-Clinic links created');
 
   // ─── Today's Queue for Dr. Pooja (6 patients) ────────────────────────────
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
   const queueData = [
-    { patient: patients[0], slot: '09:00', q: 1, wait: 25,  symptoms: 'Acne and skin rash' },
-    { patient: patients[1], slot: '09:25', q: 2, wait: 50,  symptoms: 'Dry skin and itching' },
-    { patient: patients[2], slot: '09:50', q: 3, wait: 75,  symptoms: 'Fungal infection on feet' },
-    { patient: patients[3], slot: '10:15', q: 4, wait: 100, symptoms: 'Hair fall and dandruff' },
-    { patient: patients[4], slot: '10:40', q: 5, wait: 125, symptoms: 'Eczema flare-up' },
-    { patient: patients[5], slot: '11:05', q: 6, wait: 150, symptoms: 'Follow-up for psoriasis' },
+    { patient: patients[0], slot: '09:00', q: 1, wait: 25,  symptoms: 'Lower back pain' },
+    { patient: patients[1], slot: '09:25', q: 2, wait: 50,  symptoms: 'Neck stiffness and pain' },
+    { patient: patients[2], slot: '09:50', q: 3, wait: 75,  symptoms: 'Knee rehabilitation post-surgery' },
+    { patient: patients[3], slot: '10:15', q: 4, wait: 100, symptoms: 'Shoulder pain and restricted movement' },
+    { patient: patients[4], slot: '10:40', q: 5, wait: 125, symptoms: 'Sciatica pain' },
+    { patient: patients[5], slot: '11:05', q: 6, wait: 150, symptoms: 'Post-fracture physiotherapy' },
   ];
 
   const appointments = [];
@@ -244,10 +281,11 @@ async function main() {
   console.log('─────────────────────────────────────────');
   console.log('📋 Credentials (Password: Password@123)');
   console.log('─────────────────────────────────────────');
-  console.log('Super Admin:   +919000000001 | admin@pulsemate.com');
-  console.log('Clinic Owner:  +919000000002 | owner@pulsemate.com');
-  console.log('Dr. Pooja:     +919000000011 | pooja@pulsemate.com');
-  console.log('Receptionist:  +919000000005 | reception@pulsemate.com');
+  console.log('Super Admin:       +919000000001 | admin@pulsemate.com');
+  console.log('Clinic Owner:      +919000000002 | owner@pulsemate.com');
+  console.log('Dr. Pooja:         +919000000011 | pooja@pulsemate.com');
+  console.log('Dr. Arjun Upadhyay:+919000000013 | arjun@pulsemate.com');
+  console.log('Receptionist:      +919000000005 | reception@pulsemate.com');
   console.log('─────────────────────────────────────────');
   console.log('Clinic: Spine Clinic (Bangalore)');
   console.log('─────────────────────────────────────────\n');

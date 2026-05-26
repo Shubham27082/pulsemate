@@ -470,6 +470,20 @@ const updateProfile = async (req, res, next) => {
       mergedName && mergedGender && (mergedDob || mergedAge) && (mergedCity || address) && mergedEmergency
     );
 
+    // Build profile update — only include fields that were actually sent in the request body
+    const profileUpdate = {};
+    if (age !== undefined)              profileUpdate.age = age || null;
+    if (dob !== undefined)              profileUpdate.dob = dob ? new Date(dob) : null;
+    if (gender !== undefined)           profileUpdate.gender = gender || null;
+    if (address !== undefined)          profileUpdate.address = address || null;
+    if (city !== undefined)             profileUpdate.city = city || null;
+    if (emergencyContact !== undefined) profileUpdate.emergencyContact = emergencyContact || null;
+    if (bloodGroup !== undefined)       profileUpdate.bloodGroup = bloodGroup || null;
+    if (allergies !== undefined)        profileUpdate.allergies = allergies || null;
+    if (existingDiseases !== undefined) profileUpdate.existingDiseases = existingDiseases || null;
+    if (insuranceProvider !== undefined) profileUpdate.insuranceProvider = insuranceProvider || null;
+    profileUpdate.profileCompleted = profileCompleted;
+
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: {
@@ -490,19 +504,7 @@ const updateProfile = async (req, res, next) => {
               insuranceProvider: insuranceProvider || null,
               profileCompleted,
             },
-            update: {
-              ...(age !== undefined && { age }),
-              ...(dob !== undefined && { dob: dob ? new Date(dob) : null }),
-              ...(gender && { gender }),
-              ...(address !== undefined && { address }),
-              ...(city !== undefined && { city }),
-              ...(emergencyContact !== undefined && { emergencyContact }),
-              ...(bloodGroup !== undefined && { bloodGroup }),
-              ...(allergies !== undefined && { allergies }),
-              ...(existingDiseases !== undefined && { existingDiseases }),
-              ...(insuranceProvider !== undefined && { insuranceProvider }),
-              profileCompleted,
-            },
+            update: profileUpdate,
           },
         },
       },

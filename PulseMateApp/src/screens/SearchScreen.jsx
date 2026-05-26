@@ -229,10 +229,6 @@ export default function SearchScreen({ navigation }) {
 
                   {/* Fee + heart */}
                   <View style={s.feeCol}>
-                    <Text style={[s.feeVal, { color: accent }]}>
-                      ₹{doc.consultationFee || 0}
-                    </Text>
-                    <Text style={s.feeLabel}>Consultation Fee</Text>
                     <TouchableOpacity style={s.heartBtn}>
                       <Ionicons name="heart-outline" size={20} color={colors.textMuted} />
                     </TouchableOpacity>
