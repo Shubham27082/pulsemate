@@ -1,6 +1,3 @@
-// PulseMate - Prisma Schema
-// Healthcare Appointment + Live Queue Platform
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,20 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
-
-enum Role {
-  SUPER_ADMIN
+enum UserRole {
+  PATIENT
   CLINIC_OWNER
   DOCTOR
   RECEPTIONIST
-  PATIENT
+  SUPER_ADMIN
 }
 
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
+enum ApprovalStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum AdminLevel {
+  ROOT
+  SUPER_ADMIN
+  SUPPORT
+  FINANCE
 }
 
 enum AppointmentType {
@@ -36,6 +39,7 @@ enum AppointmentStatus {
   BOOKED
   CHECKED_IN
   IN_QUEUE
+  CALLED
   IN_CONSULTATION
   COMPLETED
   CANCELLED
@@ -83,31 +87,44 @@ enum StaffRole {
   RECEPTIONIST
 }
 
-// ─── Models ──────────────────────────────────────────────────────────────────
+enum ClinicInviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  REMOVED
+}
 
 model User {
-  id           String   @id @default(uuid())
-  name         String?
-  mobile       String   @unique
-  email        String?  @unique
-  role         Role     @default(PATIENT)
-  passwordHash String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String         @id @default(uuid())
+  name           String?
+  mobile         String         @unique
+  email          String?        @unique
+  role           UserRole       @default(PATIENT)
+  approvalStatus ApprovalStatus @default(VERIFIED)
+  passwordHash   String?
+  rejectionReason String?
+  suspendedReason String?
+  isActive       Boolean        @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  // Relations
-  patientProfile  PatientProfile?
-  doctorProfile   DoctorProfile?
-  ownedClinics    Clinic[]         @relation("ClinicOwner")
-  clinicStaff     ClinicStaff[]
-  appointments    Appointment[]    @relation("PatientAppointments")
-  refreshTokens   RefreshToken[]
-  auditLogs       AuditLog[]
-  queueItems      QueueItem[]      @relation("PatientQueueItems")
-  prescriptions   Prescription[]   @relation("PatientPrescriptions")
-  payments        Payment[]        @relation("PatientPayments")
-  fcmTokens       FcmToken[]
+  patientProfile      PatientProfile?
+  doctorProfile       DoctorProfile?
+  receptionistProfile ReceptionistProfile?
+  adminProfile        AdminProfile?
+  ownedClinics        Clinic[]              @relation("ClinicOwner")
+  clinicStaff         ClinicStaff[]
+  appointments        Appointment[]         @relation("PatientAppointments")
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]            @relation("AuditActor")
+  queueItems          QueueItem[]           @relation("PatientQueueItems")
+  prescriptions       Prescription[]        @relation("PatientPrescriptions")
+  payments            Payment[]             @relation("PatientPayments")
+  fcmTokens           FcmToken[]
+  createdAdmins       AdminProfile[]        @relation("AdminCreator")
+  createdReceptionists ReceptionistProfile[] @relation("OwnerCreatedReceptionists")
 
   @@map("users")
 }
@@ -117,9 +134,11 @@ model PatientProfile {
   userId            String   @unique
   age               Int?
   dob               DateTime?
-  gender            Gender?
+  gender            String?
   address           String?
   city              String?
+  state             String?
+  pincode           String?
   emergencyContact  String?
   bloodGroup        String?
   allergies         String?
@@ -135,27 +154,36 @@ model PatientProfile {
 }
 
 model Clinic {
-  id          String   @id @default(uuid())
-  name        String
-  ownerId     String
-  phone       String?
-  address     String?
-  city        String?
-  latitude    Float?
-  longitude   Float?
-  isVerified  Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  openingTime String?  // "09:00"
-  closingTime String?  // "18:00"
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    String         @id @default(uuid())
+  name                  String
+  ownerId               String
+  phone                 String?
+  address               String?
+  city                  String?
+  state                 String?
+  pincode               String?
+  latitude              Float?
+  longitude             Float?
+  isVerified            Boolean        @default(false)
+  approvalStatus        ApprovalStatus @default(PENDING)
+  rejectionReason       String?
+  isActive              Boolean        @default(true)
+  openingTime           String?
+  closingTime           String?
+  openingHours          String?
+  description           String?
+  clinicLicenseDocument String?
+  gstNumber             String?
+  specialties           String[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  owner        User          @relation("ClinicOwner", fields: [ownerId], references: [id])
-  staff        ClinicStaff[]
-  doctorClinics DoctorClinic[]
-  appointments Appointment[]
-  queues       Queue[]
+  owner              User                 @relation("ClinicOwner", fields: [ownerId], references: [id])
+  staff              ClinicStaff[]
+  doctorClinics      DoctorClinic[]       @relation("MarketplaceClinic")
+  appointments       Appointment[]
+  queues             Queue[]
+  receptionistProfiles ReceptionistProfile[]
 
   @@map("clinics")
 }
@@ -177,21 +205,27 @@ model ClinicStaff {
 }
 
 model DoctorProfile {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  specialization      String?
-  experienceYears     Int?     @default(0)
-  education           String?
-  consultationFee     Float?   @default(0)
-  onlineAvailable     Boolean  @default(false)
-  offlineAvailable    Boolean  @default(true)
-  bio                 String?
-  avgConsultationMins Int      @default(10)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                        String         @id @default(uuid())
+  userId                    String         @unique
+  approvalStatus            ApprovalStatus @default(PENDING)
+  qualification             String?
+  specialization            String?
+  experienceYears           Int?           @default(0)
+  education                 String?
+  consultationFee           Float?         @default(0)
+  onlineAvailable           Boolean        @default(false)
+  offlineAvailable          Boolean        @default(true)
+  bio                       String?
+  avgConsultationMins       Int            @default(10)
+  medicalRegistrationNumber String?        @unique
+  certificates              Json?
+  languagesKnown            String[]
+  marketplaceVisible        Boolean        @default(false)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  doctorClinics DoctorClinic[]
+  doctorClinics DoctorClinic[] @relation("MarketplaceDoctor")
   appointments  Appointment[]
   queues        Queue[]
   prescriptions Prescription[]
@@ -199,34 +233,67 @@ model DoctorProfile {
   @@map("doctor_profiles")
 }
 
-model DoctorClinic {
-  id                   String   @id @default(uuid())
-  doctorId             String   // references DoctorProfile.id
-  clinicId             String
-  consultationFee      Float?
-  availableDays        String[] // ["MON","TUE","WED"]
-  startTime            String?  // "09:00"
-  endTime              String?  // "17:00"
-  avgConsultationMins  Int      @default(10)
-  isActive             Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+model ReceptionistProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  assignedClinicId String
+  createdByOwnerId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  doctor DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedClinic Clinic @relation(fields: [assignedClinicId], references: [id], onDelete: Cascade)
+  createdByOwner User   @relation("OwnerCreatedReceptionists", fields: [createdByOwnerId], references: [id])
+
+  @@map("receptionist_profiles")
+}
+
+model AdminProfile {
+  id          String     @id @default(uuid())
+  userId      String     @unique
+  level       AdminLevel
+  createdById String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("AdminCreator", fields: [createdById], references: [id])
+
+  @@map("admin_profiles")
+}
+
+model DoctorClinic {
+  id                  String            @id @default(uuid())
+  doctorId            String
+  clinicId            String
+  inviteStatus        ClinicInviteStatus @default(PENDING)
+  roleAtClinic        String?           @default("CONSULTANT")
+  consultationFee     Float?
+  availableDays       String[]
+  startTime           String?
+  endTime             String?
+  avgConsultationMins Int               @default(10)
+  isActive            Boolean           @default(true)
+  joinedAt            DateTime?
+  removedAt           DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  doctor DoctorProfile @relation("MarketplaceDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  clinic Clinic        @relation("MarketplaceClinic", fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, clinicId])
-  @@map("doctor_clinics")
+  @@map("clinic_doctors")
 }
 
 model Appointment {
   id                   String            @id @default(uuid())
   patientId            String
-  doctorId             String            // references DoctorProfile.id
+  doctorId             String
   clinicId             String
   appointmentType      AppointmentType   @default(OFFLINE)
   appointmentDate      DateTime
-  slotTime             String?           // "10:30"
+  slotTime             String?
   status               AppointmentStatus @default(BOOKED)
   queueNumber          Int?
   estimatedWaitMinutes Int?
@@ -235,24 +302,24 @@ model Appointment {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
-  patient   User          @relation("PatientAppointments", fields: [patientId], references: [id])
-  doctor    DoctorProfile @relation(fields: [doctorId], references: [id])
-  clinic    Clinic        @relation(fields: [clinicId], references: [id])
-  queueItem QueueItem?
+  patient      User          @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor       DoctorProfile @relation(fields: [doctorId], references: [id])
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  queueItem    QueueItem?
   prescription Prescription?
-  payment   Payment?
+  payment      Payment?
 
   @@map("appointments")
 }
 
 model Queue {
-  id       String      @id @default(uuid())
-  clinicId String
-  doctorId String      // references DoctorProfile.id
-  date     DateTime    @db.Date
-  status   QueueStatus @default(ACTIVE)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id        String      @id @default(uuid())
+  clinicId  String
+  doctorId  String
+  date      DateTime    @db.Date
+  status    QueueStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   clinic     Clinic        @relation(fields: [clinicId], references: [id])
   doctor     DoctorProfile @relation(fields: [doctorId], references: [id])
@@ -270,8 +337,8 @@ model QueueItem {
   queueNumber   Int
   status        QueueItemStatus @default(WAITING)
   position      Int
-  isFollowUp    Boolean         @default(false)  // true for return/follow-up patients
-  followUpOf    String?                           // original appointmentId this follows up from
+  isFollowUp    Boolean         @default(false)
+  followUpOf    String?
   calledAt      DateTime?
   completedAt   DateTime?
   createdAt     DateTime        @default(now())
@@ -284,44 +351,64 @@ model QueueItem {
   @@map("queue_items")
 }
 
-model Otp {
-  id        String     @id @default(uuid())
-  mobile    String
-  otpHash   String
-  purpose   OtpPurpose @default(LOGIN)
-  expiresAt DateTime
-  attempts  Int        @default(0)
-  verified  Boolean    @default(false)
-  createdAt DateTime   @default(now())
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String    @unique
+  authRole         UserRole
+  deviceInfo       String?
+  ipAddress        String?
+  userAgent        String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime  @default(now())
+  isRevoked        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
 
-  @@map("otps")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, authRole, isRevoked])
+  @@map("sessions")
 }
 
-model RefreshToken {
+model PasswordResetToken {
   id        String    @id @default(uuid())
   userId    String
   tokenHash String    @unique
   expiresAt DateTime
-  revokedAt DateTime?
+  usedAt    DateTime?
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("refresh_tokens")
+  @@map("password_reset_tokens")
+}
+
+model OtpVerification {
+  id         String     @id @default(uuid())
+  mobile     String
+  purpose    OtpPurpose @default(LOGIN)
+  otpHash    String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  verifiedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([mobile, purpose, createdAt])
+  @@map("otp_verifications")
 }
 
 model Prescription {
-  id            String   @id @default(uuid())
-  appointmentId String   @unique
-  doctorId      String   // references DoctorProfile.id
-  patientId     String
-  diagnosis     String?
-  medicines     Json     // [{ name, dosage, frequency, duration, notes }]
-  instructions  String?
-  followUpDate  DateTime?
-  requiresFollowUp Boolean @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(uuid())
+  appointmentId    String   @unique
+  doctorId         String
+  patientId        String
+  diagnosis        String?
+  medicines        Json
+  instructions     String?
+  followUpDate     DateTime?
+  requiresFollowUp Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   appointment Appointment   @relation(fields: [appointmentId], references: [id])
   doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
@@ -331,18 +418,18 @@ model Prescription {
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  appointmentId   String        @unique
-  patientId       String
-  amount          Float
-  status          PaymentStatus @default(PENDING)
-  method          PaymentMethod @default(RAZORPAY)
-  razorpayOrderId String?
+  id                String        @id @default(uuid())
+  appointmentId     String        @unique
+  patientId         String
+  amount            Float
+  status            PaymentStatus @default(PENDING)
+  method            PaymentMethod @default(RAZORPAY)
+  razorpayOrderId   String?
   razorpayPaymentId String?
   razorpaySignature String?
-  paidAt          DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
   patient     User        @relation("PatientPayments", fields: [patientId], references: [id])
@@ -354,7 +441,7 @@ model FcmToken {
   id        String   @id @default(uuid())
   userId    String
   token     String   @unique
-  platform  String?  // 'web', 'android', 'ios'
+  platform  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -373,7 +460,7 @@ model AuditLog {
   ipAddress  String?
   createdAt  DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation("AuditActor", fields: [userId], references: [id])
 
   @@map("audit_logs")
 }

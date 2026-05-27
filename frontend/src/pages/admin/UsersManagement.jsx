@@ -3,6 +3,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { getAdminUsers, updateUserStatus } from '../../api/admin.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
+import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
 
 const ROLES = ['All', 'PATIENT', 'DOCTOR', 'RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'];
@@ -114,9 +115,12 @@ const UsersManagement = () => {
                         <span className={`badge text-xs ${ROLE_COLORS[user.role] || 'badge-gray'}`}>
                           {user.role}
                         </span>
+                        {user.approvalStatus ? <StatusBadge status={user.approvalStatus} /> : null}
+                        {user.adminProfile?.level ? <span className="badge badge-gray text-xs">{user.adminProfile.level}</span> : null}
                       </div>
                       <p className="text-sm text-text-muted">{user.mobile}</p>
                       {user.email && <p className="text-xs text-text-muted">{user.email}</p>}
+                      {user.rejectionReason && <p className="mt-1 text-xs text-red-600">Reason: {user.rejectionReason}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

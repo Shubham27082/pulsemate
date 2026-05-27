@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import useAuthStore from '../../store/authStore';
+import AccountApprovalState from '../../components/ui/AccountApprovalState';
 import { getMyClinics, getClinicRevenue } from '../../api/clinic.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
@@ -28,6 +29,10 @@ const OwnerDashboard = () => {
 
   // Load clinics once
   useEffect(() => {
+    if (user?.approvalStatus && user.approvalStatus !== 'VERIFIED') {
+      setLoadingClinics(false);
+      return;
+    }
     getMyClinics()
       .then((res) => {
         const list = res.data.data.clinics || [];
@@ -36,10 +41,11 @@ const OwnerDashboard = () => {
       })
       .catch(() => toast.error('Failed to load clinics'))
       .finally(() => setLoadingClinics(false));
-  }, []);
+  }, [user?.approvalStatus]);
 
   // Load revenue whenever clinic or period changes
   useEffect(() => {
+    if (user?.approvalStatus && user.approvalStatus !== 'VERIFIED') return;
     if (!selectedClinic) return;
     setLoadingRevenue(true);
     getClinicRevenue(selectedClinic.id, period)
@@ -47,6 +53,20 @@ const OwnerDashboard = () => {
       .catch(() => toast.error('Failed to load revenue'))
       .finally(() => setLoadingRevenue(false));
   }, [selectedClinic, period]);
+
+  if (user?.approvalStatus && user.approvalStatus !== 'VERIFIED') {
+    return (
+      <DashboardLayout>
+        <AccountApprovalState
+          status={user.approvalStatus}
+          roleLabel="Clinic owner"
+          reason={user?.rejectionReason || user?.ownedClinics?.[0]?.rejectionReason}
+          primaryAction={{ to: '/owner', label: 'Refresh status' }}
+          secondaryAction={{ to: '/login/clinic', label: 'Back to clinic login' }}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

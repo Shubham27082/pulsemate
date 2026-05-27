@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { authenticate, authorize, requireApprovalStatuses } = require('../middleware/auth.middleware');
 const {
   getQueue,
   addWalkIn,
@@ -14,6 +14,10 @@ const {
 } = require('../controllers/reception.controller');
 
 router.use(authenticate, authorize('RECEPTIONIST', 'CLINIC_OWNER', 'SUPER_ADMIN'));
+router.use((req, res, next) => {
+  if (req.user.role === 'SUPER_ADMIN') return next();
+  return requireApprovalStatuses('VERIFIED')(req, res, next);
+});
 
 router.get('/queue/:doctorId', getQueue);
 router.post('/walk-in', addWalkIn);

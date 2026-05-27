@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth.middleware');
+const {
+  authenticate,
+  authorize,
+  requireApprovalStatuses,
+  requireDoctorVerified,
+} = require('../middleware/auth.middleware');
 const {
   getTodayAppointments,
   getAppointments,
@@ -12,6 +17,10 @@ const {
 } = require('../controllers/doctor.controller');
 
 router.use(authenticate, authorize('DOCTOR', 'SUPER_ADMIN'));
+router.use((req, res, next) => {
+  if (req.user.role === 'SUPER_ADMIN') return next();
+  return requireApprovalStatuses('VERIFIED')(req, res, () => requireDoctorVerified(req, res, next));
+});
 
 router.get('/today', getTodayAppointments);
 router.get('/appointments', getAppointments);

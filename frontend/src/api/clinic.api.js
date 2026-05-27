@@ -18,6 +18,9 @@ export const addStaff = (clinicId, data) =>
 export const getStaff = (clinicId) =>
   api.get(`/clinics/${clinicId}/staff`);
 
+export const getDoctorInvites = (clinicId) =>
+  api.get(`/clinics/${clinicId}/doctor-invites`);
+
 export const updateStaffStatus = (clinicId, staffId, isActive) =>
   api.patch(`/clinics/${clinicId}/staff/${staffId}/status`, { isActive });
 

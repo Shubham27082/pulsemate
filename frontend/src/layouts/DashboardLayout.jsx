@@ -67,7 +67,10 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate  = useNavigate();
 
-  const navItems = NAV_ITEMS[user?.role] || [];
+  const hasLimitedAccess = ['DOCTOR', 'CLINIC_OWNER'].includes(user?.role) && user?.approvalStatus && user.approvalStatus !== 'VERIFIED';
+  const navItems = hasLimitedAccess
+    ? (NAV_ITEMS[user?.role] || []).filter((item) => item.path === (user?.role === 'DOCTOR' ? '/doctor' : '/owner'))
+    : (NAV_ITEMS[user?.role] || []);
 
   const handleLogout = async () => {
     await logout();

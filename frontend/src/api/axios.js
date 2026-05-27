@@ -1,88 +1,95 @@
 import axios from 'axios';
+import {
+  PORTAL_CONFIG,
+  clearPortalSession,
+  getPortalFromPath,
+  readPortalSession,
+  writePortalSession,
+} from '../utils/authScope';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // Send cookies with requests
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Track if we're currently refreshing to prevent multiple refresh calls
-let isRefreshing = false;
-let failedQueue = [];
+const portalLocks = new Map();
+const portalQueues = new Map();
 
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+const processQueue = (portal, error, token = null) => {
+  const queue = portalQueues.get(portal) || [];
+  queue.forEach((pending) => {
+    if (error) pending.reject(error);
+    else pending.resolve(token);
   });
-  failedQueue = [];
+  portalQueues.set(portal, []);
 };
 
-// Request interceptor - attach access token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+api.interceptors.request.use((config) => {
+  const portal = config.headers['X-Auth-Portal'] || getPortalFromPath();
+  config.headers['X-Auth-Portal'] = portal;
+  const session = readPortalSession(portal);
+  if (session?.accessToken) {
+    config.headers.Authorization = `Bearer ${session.accessToken}`;
+  }
+  return config;
+});
 
-// Response interceptor - handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+    const portal = originalRequest.headers?.['X-Auth-Portal'] || getPortalFromPath();
 
-    // If 401 and not already retrying
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        // Queue the request while refreshing
+    if (error.response?.status === 401 && !originalRequest._retry && PORTAL_CONFIG[portal]) {
+      if (portalLocks.get(portal)) {
         return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
+          const queue = portalQueues.get(portal) || [];
+          queue.push({ resolve, reject });
+          portalQueues.set(portal, queue);
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
       }
 
+      portalLocks.set(portal, true);
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
         const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
+          `${API_BASE_URL}${PORTAL_CONFIG[portal].loginPath}/refresh-token`,
           {},
-          { withCredentials: true }
+          {
+            withCredentials: true,
+            headers: { 'X-Auth-Portal': portal },
+          }
         );
 
-        const { accessToken } = response.data.data;
-        localStorage.setItem('accessToken', accessToken);
-
-        processQueue(null, accessToken);
+        const { accessToken, user } = response.data.data;
+        const current = readPortalSession(portal) || {};
+        const nextState = {
+          ...current,
+          user: user || current.user,
+          accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+        };
+        writePortalSession(portal, nextState);
+        processQueue(portal, null, accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-
         return api(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError, null);
-        localStorage.removeItem('accessToken');
-        // Redirect to login
-        window.location.href = '/login';
+        processQueue(portal, refreshError, null);
+        clearPortalSession(portal);
+        window.location.href = `/login/${portal === 'clinic-owner' ? 'clinic' : portal}`;
         return Promise.reject(refreshError);
       } finally {
-        isRefreshing = false;
+        portalLocks.set(portal, false);
       }
     }
 

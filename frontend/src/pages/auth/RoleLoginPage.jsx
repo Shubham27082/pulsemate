@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { sendOtp, verifyOtp, loginWithPassword } from '../../api/auth.api';
 import useAuthStore from '../../store/authStore';
+import { getPortalFromPath } from '../../utils/authScope';
 
 // ─── Role config ─────────────────────────────────────────────────────────────
 const ROLE_CONFIG = {
@@ -34,7 +35,8 @@ const ROLE_CONFIG = {
     ringColor: 'focus:ring-green-500',
     btnColor: 'bg-green-600 hover:bg-green-700',
     loginType: 'password',
-    showRegister: false,
+    showRegister: true,
+    registerPath: '/register/doctor',
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -70,7 +72,8 @@ const ROLE_CONFIG = {
     ringColor: 'focus:ring-orange-500',
     btnColor: 'bg-orange-600 hover:bg-orange-700',
     loginType: 'password',
-    showRegister: false,
+    showRegister: true,
+    registerPath: '/register/clinic-owner',
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -108,6 +111,7 @@ const RoleLoginPage = () => {
   const { role } = useParams();
   const navigate  = useNavigate();
   const { setAuth } = useAuthStore();
+  const portal = getPortalFromPath(`/login/${role || ''}`);
 
   const config = ROLE_CONFIG[role];
 
@@ -168,7 +172,7 @@ const RoleLoginPage = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await loginWithPassword({ mobile, password });
+      const res = await loginWithPassword({ mobile, password }, portal);
       const { accessToken, user } = res.data.data;
       setAuth(user, accessToken);
       navigate(ROLE_HOME[user.role] || '/patient');
@@ -383,12 +387,12 @@ const RoleLoginPage = () => {
             </form>
           )}
 
-          {/* Register link — patients only */}
+          {/* Register link */}
           {config.showRegister && (
             <div className="mt-6 pt-6 border-t border-gray-100 text-center">
               <p className="text-sm text-gray-500">
                 New to PulseMate?{' '}
-                <Link to="/register" className={`font-semibold ${config.textColor}`}>Create account</Link>
+                <Link to={config.registerPath || '/register'} className={`font-semibold ${config.textColor}`}>Create account</Link>
               </p>
             </div>
           )}

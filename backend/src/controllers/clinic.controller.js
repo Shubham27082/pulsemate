@@ -175,9 +175,23 @@ const addStaff = async (req, res, next) => {
           name,
           email,
           role: staffRole,
+          approvalStatus: 'VERIFIED',
           passwordHash,
           ...(role === 'DOCTOR' && {
-            doctorProfile: { create: {} },
+            doctorProfile: {
+              create: {
+                approvalStatus: 'VERIFIED',
+                marketplaceVisible: false,
+              },
+            },
+          }),
+          ...(role === 'RECEPTIONIST' && {
+            receptionistProfile: {
+              create: {
+                assignedClinicId: clinicId,
+                createdByOwnerId: req.user.id,
+              },
+            },
           }),
         },
       });
@@ -190,7 +204,22 @@ const addStaff = async (req, res, next) => {
           data: { role: targetRole },
         });
         if (role === 'DOCTOR' && !await prisma.doctorProfile.findUnique({ where: { userId: user.id } })) {
-          await prisma.doctorProfile.create({ data: { userId: user.id } });
+          await prisma.doctorProfile.create({
+            data: {
+              userId: user.id,
+              approvalStatus: 'VERIFIED',
+              marketplaceVisible: false,
+            },
+          });
+        }
+        if (role === 'RECEPTIONIST' && !await prisma.receptionistProfile.findUnique({ where: { userId: user.id } })) {
+          await prisma.receptionistProfile.create({
+            data: {
+              userId: user.id,
+              assignedClinicId: clinicId,
+              createdByOwnerId: req.user.id,
+            },
+          });
         }
       }
     }
@@ -221,8 +250,8 @@ const addStaff = async (req, res, next) => {
       if (doctorProfile) {
         await prisma.doctorClinic.upsert({
           where: { doctorId_clinicId: { doctorId: doctorProfile.id, clinicId } },
-          update: { isActive: true },
-          create: { doctorId: doctorProfile.id, clinicId },
+          update: { isActive: true, inviteStatus: 'ACCEPTED', joinedAt: new Date(), removedAt: null },
+          create: { doctorId: doctorProfile.id, clinicId, inviteStatus: 'ACCEPTED', joinedAt: new Date() },
         });
       }
     }
@@ -261,6 +290,40 @@ const getStaff = async (req, res, next) => {
     });
 
     return sendSuccess(res, { staff });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/clinics/:id/doctor-invites - Get doctor invite history for a clinic
+ */
+const getDoctorInvites = async (req, res, next) => {
+  try {
+    const { id: clinicId } = req.params;
+
+    if (req.user.role !== 'SUPER_ADMIN') {
+      const clinic = await prisma.clinic.findFirst({
+        where: { id: clinicId, ownerId: req.user.id },
+      });
+      if (!clinic) return sendError(res, 'Clinic not found or access denied', 404);
+    }
+
+    const invites = await prisma.doctorClinic.findMany({
+      where: { clinicId },
+      include: {
+        doctor: {
+          include: {
+            user: {
+              select: { id: true, name: true, mobile: true, email: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return sendSuccess(res, { invites });
   } catch (error) {
     next(error);
   }
@@ -435,6 +498,7 @@ module.exports = {
   updateClinic,
   addStaff,
   getStaff,
+  getDoctorInvites,
   updateStaffStatus,
   getClinicRevenue,
   getClinicAppointments,

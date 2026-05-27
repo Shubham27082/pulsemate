@@ -13,6 +13,9 @@ const STATUS_CONFIG = {
   WAITING: { label: 'Waiting', className: 'badge-warning' },
   CALLED: { label: 'Called', className: 'bg-purple-100 text-purple-700 badge' },
   SKIPPED: { label: 'Skipped', className: 'badge-gray' },
+  ACCEPTED: { label: 'Accepted', className: 'badge-success' },
+  REJECTED: { label: 'Rejected', className: 'badge-error' },
+  REMOVED: { label: 'Removed', className: 'badge-gray' },
 
   // Queue status
   ACTIVE: { label: 'Active', className: 'badge-success' },
@@ -22,6 +25,7 @@ const STATUS_CONFIG = {
   // Clinic
   VERIFIED: { label: 'Verified', className: 'badge-success' },
   PENDING: { label: 'Pending', className: 'badge-warning' },
+  SUSPENDED: { label: 'Suspended', className: 'bg-gray-800 text-white badge' },
 
   // User
   ENABLED: { label: 'Active', className: 'badge-success' },

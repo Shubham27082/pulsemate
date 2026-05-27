@@ -21,6 +21,9 @@ const patientRoutes = require('./routes/patient.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const approvalRoutes = require('./routes/approval.routes');
+const marketplaceRoutes = require('./routes/marketplace.routes');
+const sessionRoutes = require('./routes/session.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -106,6 +109,9 @@ app.use('/api/patient', patientRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);

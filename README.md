@@ -54,8 +54,15 @@ Double-click **`setup-database.bat`** OR run manually:
 ```bash
 cd backend
 npm install
-npx prisma migrate dev --name init
+npx prisma generate
+npx prisma migrate deploy
 node prisma/seed.js
+```
+
+For future schema changes during development, create a new migration after editing `schema.prisma`:
+```bash
+cd backend
+npx prisma migrate dev --name your_change_name
 ```
 
 ---

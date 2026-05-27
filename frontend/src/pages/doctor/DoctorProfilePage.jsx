@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { getDoctorProfile, updateDoctorProfile, updateAvailability } from '../../api/doctor.api';
+import { getMyDoctorInvitations, respondToDoctorInvitation } from '../../api/marketplace.api';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import StatusBadge from '../../components/ui/StatusBadge';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 
@@ -18,13 +20,19 @@ const DoctorProfilePage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [invitations, setInvitations] = useState([]);
+  const [inviteLoading, setInviteLoading] = useState(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await getDoctorProfile();
-        const prof = res.data.data.profile;
+        const [profileRes, invitesRes] = await Promise.all([
+          getDoctorProfile(),
+          getMyDoctorInvitations(),
+        ]);
+        const prof = profileRes.data.data.profile;
         setProfile(prof);
+        setInvitations(invitesRes.data.data?.invitations || []);
         setFormData({
           specialization: prof.specialization || '',
           experienceYears: prof.experienceYears || 0,
@@ -43,6 +51,30 @@ const DoctorProfilePage = () => {
     };
     fetchProfile();
   }, []);
+
+  const handleInvitationAction = async (inviteId, action) => {
+    setInviteLoading(inviteId);
+    try {
+      await respondToDoctorInvitation(inviteId, action);
+      toast.success(
+        action === 'ACCEPT'
+          ? 'Invitation accepted'
+          : action === 'REJECT'
+            ? 'Invitation rejected'
+            : 'You left the clinic'
+      );
+      const [profileRes, invitesRes] = await Promise.all([
+        getDoctorProfile(),
+        getMyDoctorInvitations(),
+      ]);
+      setProfile(profileRes.data.data.profile);
+      setInvitations(invitesRes.data.data?.invitations || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update invitation');
+    } finally {
+      setInviteLoading(null);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -129,6 +161,71 @@ const DoctorProfilePage = () => {
             </div>
           </div>
         )}
+
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-text-primary">Clinic Invitations</h3>
+            <span className="badge badge-info text-xs">{invitations.length} total</span>
+          </div>
+
+          {invitations.length === 0 ? (
+            <p className="text-sm text-text-muted">No clinic invitations yet. Approved clinics will appear here once they invite you.</p>
+          ) : (
+            <div className="space-y-3">
+              {invitations.map((invite) => (
+                <div key={invite.id} className="rounded-xl border border-border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-text-primary">{invite.clinic?.name}</p>
+                        <StatusBadge status={invite.inviteStatus} />
+                      </div>
+                      <p className="mt-1 text-sm text-text-muted">
+                        {[invite.clinic?.city, invite.clinic?.state].filter(Boolean).join(', ') || 'Location unavailable'}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        Fee: ₹{invite.consultationFee ?? 0}
+                        {invite.startTime && invite.endTime ? ` · ${invite.startTime} - ${invite.endTime}` : ''}
+                      </p>
+                      {invite.availableDays?.length ? (
+                        <p className="text-xs text-text-muted mt-1">Days: {invite.availableDays.join(', ')}</p>
+                      ) : null}
+                    </div>
+                    {invite.inviteStatus === 'PENDING' ? (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleInvitationAction(invite.id, 'REJECT')}
+                          disabled={inviteLoading === invite.id}
+                          className="btn-outline text-sm py-2 px-3"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInvitationAction(invite.id, 'ACCEPT')}
+                          disabled={inviteLoading === invite.id}
+                          className="btn-primary text-sm py-2 px-3"
+                        >
+                          {inviteLoading === invite.id ? 'Saving...' : 'Accept'}
+                        </button>
+                      </div>
+                    ) : invite.inviteStatus === 'ACCEPTED' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleInvitationAction(invite.id, 'LEAVE')}
+                        disabled={inviteLoading === invite.id}
+                        className="btn-outline text-sm py-2 px-3 text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        {inviteLoading === invite.id ? 'Saving...' : 'Leave clinic'}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Profile form */}
         <div className="card">

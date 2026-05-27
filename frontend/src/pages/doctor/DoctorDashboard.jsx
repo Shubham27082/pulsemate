@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import useAuthStore from '../../store/authStore';
+import AccountApprovalState from '../../components/ui/AccountApprovalState';
 import {
   getTodayAppointments,
   getDoctorAppointments,
@@ -45,7 +46,13 @@ const DoctorDashboard = () => {
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    if (user?.approvalStatus && user.approvalStatus !== 'VERIFIED') {
+      setIsLoading(false);
+      return;
+    }
+    fetchAll();
+  }, [user?.approvalStatus]);
 
   const handleToggleAvailability = async (type) => {
     setTogglingAvail(true);
@@ -72,6 +79,20 @@ const DoctorDashboard = () => {
   };
 
   const firstName = user?.name?.split(' ').slice(1).join(' ') || user?.name || 'Doctor';
+
+  if (user?.approvalStatus && user.approvalStatus !== 'VERIFIED') {
+    return (
+      <DashboardLayout>
+        <AccountApprovalState
+          status={user.approvalStatus}
+          roleLabel="Doctor"
+          reason={user?.rejectionReason || user?.doctorProfile?.rejectionReason}
+          primaryAction={{ to: '/doctor', label: 'Refresh status' }}
+          secondaryAction={{ to: '/login/doctor', label: 'Back to doctor login' }}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

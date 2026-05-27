@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { authenticate, authorize, requireAdminLevel } = require('../middleware/auth.middleware');
 const {
   getDashboard,
   getClinics,
@@ -14,10 +14,10 @@ const {
 router.use(authenticate, authorize('SUPER_ADMIN'));
 
 router.get('/dashboard', getDashboard);
-router.get('/clinics', getClinics);
-router.patch('/clinics/:id/approve', approveClinic);
-router.get('/users', getUsers);
-router.post('/users', createStaffUser);
-router.patch('/users/:id/status', updateUserStatus);
+router.get('/clinics', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), getClinics);
+router.patch('/clinics/:id/approve', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), approveClinic);
+router.get('/users', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE'), getUsers);
+router.post('/users', requireAdminLevel('ROOT', 'SUPER_ADMIN'), createStaffUser);
+router.patch('/users/:id/status', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), updateUserStatus);
 
 module.exports = router;

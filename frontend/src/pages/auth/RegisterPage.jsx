@@ -146,6 +146,12 @@ const RegisterPage = () => {
           Already have an account?{' '}
           <Link to="/login" className="text-primary-600 font-semibold hover:text-primary-700">Sign in</Link>
         </p>
+        <p className="mt-3 text-sm text-gray-500">
+          Applying as a doctor or clinic owner?{' '}
+          <Link to="/register/doctor" className="font-semibold text-green-600 hover:text-green-700">Doctor</Link>
+          {' '}or{' '}
+          <Link to="/register/clinic-owner" className="font-semibold text-orange-600 hover:text-orange-700">Clinic Owner</Link>
+        </p>
       </div>
     </AuthLayout>
   );
