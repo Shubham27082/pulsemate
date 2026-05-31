@@ -1,99 +1,168 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const sessionRepository = require('../repositories/session.repository');
-const { hashToken } = require('../utils/crypto');
-const { ACCESS_EXPIRY, REFRESH_EXPIRY, REFRESH_EXPIRY_MS } = require('../constants/auth');
-const logger = require('../config/logger');
+const refreshTokenRepository = require('../repositories/refresh-token.repository');
+const { hashToken } = require('../utils/hash');
 
-const generateAccessToken = (user, sessionId) =>
+const ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
+const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
+const ACCESS_COOKIE_MAX_AGE = 15 * 60 * 1000;
+const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
+const randomId = () => crypto.randomUUID();
+
+const signAccessToken = (user) =>
   jwt.sign(
     {
-      userId: user.id,
+      sub: user.id,
       role: user.role,
-      approvalStatus: user.approvalStatus,
-      adminLevel: user.adminProfile?.level || null,
-      sessionId,
+      status: user.approvalStatus,
     },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: ACCESS_EXPIRY }
   );
 
-const createRefreshToken = () => crypto.randomBytes(48).toString('hex');
+const signRefreshToken = (user, jwtId) =>
+  jwt.sign(
+    {
+      sub: user.id,
+      type: 'refresh',
+      jti: jwtId,
+    },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: REFRESH_EXPIRY }
+  );
 
-const createSessionTokens = async (user, authRole, metadata = {}) => {
-  const refreshToken = createRefreshToken();
+const verifyAccessToken = (token) => jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+const verifyRefreshToken = (token) => jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+const PHONE_VERIFICATION_SECRET = process.env.JWT_RESET_SECRET || process.env.JWT_ACCESS_SECRET;
+const PHONE_VERIFICATION_EXPIRY = process.env.JWT_PHONE_VERIFY_EXPIRY || '30m';
+const EMAIL_VERIFICATION_EXPIRY = process.env.JWT_EMAIL_VERIFY_EXPIRY || '30m';
+
+const signPhoneVerificationToken = (phone, context = 'CLINIC_OWNER_REGISTER') =>
+  jwt.sign(
+    {
+      phone,
+      type: 'phone_verification',
+      context,
+    },
+    PHONE_VERIFICATION_SECRET,
+    { expiresIn: PHONE_VERIFICATION_EXPIRY }
+  );
+
+const verifyPhoneVerificationToken = (token) => jwt.verify(token, PHONE_VERIFICATION_SECRET);
+
+const signEmailVerificationToken = (email, context = 'CLINIC_OWNER_REGISTER') =>
+  jwt.sign(
+    {
+      email,
+      type: 'email_verification',
+      context,
+    },
+    PHONE_VERIFICATION_SECRET,
+    { expiresIn: EMAIL_VERIFICATION_EXPIRY }
+  );
+
+const verifyEmailVerificationToken = (token) => jwt.verify(token, PHONE_VERIFICATION_SECRET);
+
+const buildTokenPayload = async (user, metadata = {}) => {
+  const jwtId = randomId();
+  const refreshToken = signRefreshToken(user, jwtId);
   const refreshTokenHash = hashToken(refreshToken);
-  const expiresAt = new Date(Date.now() + REFRESH_EXPIRY_MS);
-
-  const session = await sessionRepository.create({
+  const stored = await refreshTokenRepository.create({
     userId: user.id,
-    refreshTokenHash,
-    authRole,
+    tokenHash: refreshTokenHash,
+    jwtId,
+    expiresAt: new Date(Date.now() + REFRESH_COOKIE_MAX_AGE),
     deviceInfo: metadata.deviceInfo || null,
     ipAddress: metadata.ipAddress || null,
-    userAgent: metadata.userAgent || null,
-    expiresAt,
   });
 
   return {
-    accessToken: generateAccessToken(user, session.id),
+    accessToken: signAccessToken(user),
     refreshToken,
-    session,
-    refreshExpiry: REFRESH_EXPIRY,
+    refreshTokenRecord: stored,
+    accessTokenMaxAge: ACCESS_COOKIE_MAX_AGE,
+    refreshTokenMaxAge: REFRESH_COOKIE_MAX_AGE,
   };
 };
 
-const rotateRefreshToken = async (rawRefreshToken, authRole, metadata = {}) => {
-  const refreshTokenHash = hashToken(rawRefreshToken);
-  const stored = await sessionRepository.findActiveByHash(refreshTokenHash, authRole);
-
-  if (!stored) {
-    const error = new Error('Invalid or expired refresh token');
-    error.status = 401;
-    throw error;
-  }
-
-  if (!stored.user.isActive || stored.user.approvalStatus === 'SUSPENDED') {
-    await sessionRepository.revokeById(stored.id);
-    const error = new Error('Account is suspended');
-    error.status = 403;
-    throw error;
-  }
-
-  await sessionRepository.revokeById(stored.id);
-  const next = await createSessionTokens(stored.user, authRole, {
-    ...metadata,
-    deviceInfo: metadata.deviceInfo || stored.deviceInfo,
-    ipAddress: metadata.ipAddress || stored.ipAddress,
-    userAgent: metadata.userAgent || stored.userAgent,
-  });
-
-  return { ...next, user: stored.user };
+const createSessionTokens = async (user, _role, metadata = {}) => {
+  const payload = await buildTokenPayload(user, metadata);
+  return {
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    refreshExpiry: REFRESH_EXPIRY,
+    session: { id: payload.refreshTokenRecord.id },
+  };
 };
 
-const revokeRefreshToken = async (rawRefreshToken, authRole) => {
-  const refreshTokenHash = hashToken(rawRefreshToken);
-  await sessionRepository.revokeByHash(refreshTokenHash, authRole);
+const rotateRefreshToken = async (rawRefreshToken, _role, metadata = {}) => {
+  let decoded;
+  try {
+    decoded = verifyRefreshToken(rawRefreshToken);
+  } catch (error) {
+    const authError = new Error('Invalid or expired refresh token');
+    authError.status = 401;
+    throw authError;
+  }
+
+  const stored = await refreshTokenRepository.findActiveByHash(hashToken(rawRefreshToken));
+  if (!stored || stored.jwtId !== decoded.jti || stored.userId !== decoded.sub) {
+    const authError = new Error('Invalid or expired refresh token');
+    authError.status = 401;
+    throw authError;
+  }
+
+  const next = await buildTokenPayload(stored.user, {
+    deviceInfo: metadata.deviceInfo || stored.deviceInfo,
+    ipAddress: metadata.ipAddress || stored.ipAddress,
+  });
+
+  await refreshTokenRepository.revokeById(stored.id, {
+    replacedByToken: next.refreshTokenRecord.id,
+  });
+
+  return {
+    accessToken: next.accessToken,
+    refreshToken: next.refreshToken,
+    refreshExpiry: REFRESH_EXPIRY,
+    session: { id: next.refreshTokenRecord.id },
+    user: stored.user,
+  };
+};
+
+const revokeRefreshToken = async (rawRefreshToken) => {
+  await refreshTokenRepository.revokeByHash(hashToken(rawRefreshToken));
 };
 
 const revokeAllUserTokens = async (userId) => {
-  await sessionRepository.revokeAllForUser(userId);
+  await refreshTokenRepository.revokeAllForUser(userId);
 };
 
-const revokeRoleSessions = async (userId, authRole) => {
-  await sessionRepository.revokeAllForRole(userId, authRole);
+const revokeAllRefreshTokens = async (userId) => {
+  await refreshTokenRepository.revokeAllForUser(userId);
 };
 
-const verifyAccessToken = (token) => jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+const revokeRoleSessions = async (userId) => {
+  await refreshTokenRepository.revokeAllForUser(userId);
+};
 
 module.exports = {
   ACCESS_EXPIRY,
   REFRESH_EXPIRY,
-  generateAccessToken,
+  ACCESS_COOKIE_MAX_AGE,
+  REFRESH_COOKIE_MAX_AGE,
+  signAccessToken,
+  verifyAccessToken,
+  verifyRefreshToken,
   createSessionTokens,
   rotateRefreshToken,
   revokeRefreshToken,
   revokeAllUserTokens,
+  revokeAllRefreshTokens,
   revokeRoleSessions,
-  verifyAccessToken,
+  signPhoneVerificationToken,
+  verifyPhoneVerificationToken,
+  signEmailVerificationToken,
+  verifyEmailVerificationToken,
 };

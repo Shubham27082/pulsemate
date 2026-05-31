@@ -18,6 +18,18 @@ const invalidateForUser = (userId) =>
     data: { usedAt: new Date() },
   });
 
+const invalidateForUserByPurpose = (userId, purpose) =>
+  prisma.passwordResetToken.updateMany({
+    where: { userId, purpose, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+const findByHash = (tokenHash) =>
+  prisma.passwordResetToken.findFirst({
+    where: { tokenHash },
+    include: { user: true },
+  });
+
 const markUsed = (id) =>
   prisma.passwordResetToken.update({
     where: { id },
@@ -27,6 +39,8 @@ const markUsed = (id) =>
 module.exports = {
   create,
   findActiveByHash,
+  findByHash,
   invalidateForUser,
+  invalidateForUserByPurpose,
   markUsed,
 };

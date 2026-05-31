@@ -1,11 +1,5 @@
 import axios from 'axios';
-import {
-  PORTAL_CONFIG,
-  clearPortalSession,
-  getPortalFromPath,
-  readPortalSession,
-  writePortalSession,
-} from '../utils/authScope';
+import useAuthStore from '../store/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -17,24 +11,31 @@ const api = axios.create({
   },
 });
 
-const portalLocks = new Map();
-const portalQueues = new Map();
+let refreshPromise = null;
 
-const processQueue = (portal, error, token = null) => {
-  const queue = portalQueues.get(portal) || [];
-  queue.forEach((pending) => {
-    if (error) pending.reject(error);
-    else pending.resolve(token);
-  });
-  portalQueues.set(portal, []);
-};
+const shouldSkipRefresh = (url = '') =>
+  [
+    '/auth/login',
+    '/auth/login-password',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/verify-reset-token',
+    '/auth/patient/send-otp',
+    '/auth/patient/verify-otp',
+    '/auth/clinic-owner/send-otp',
+    '/auth/clinic-owner/verify-otp',
+    '/auth/clinic-owner/send-email-otp',
+    '/auth/clinic-owner/verify-email-otp',
+    '/auth/clinic-owner/send-email-verification',
+    '/auth/clinic-owner/upload-document',
+    '/auth/clinic-owner/register',
+    '/auth/doctor/register',
+  ].some((path) => url.includes(path));
 
 api.interceptors.request.use((config) => {
-  const portal = config.headers['X-Auth-Portal'] || getPortalFromPath();
-  config.headers['X-Auth-Portal'] = portal;
-  const session = readPortalSession(portal);
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
+  const accessToken = useAuthStore.getState().accessToken;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
@@ -43,53 +44,28 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config || {};
-    const portal = originalRequest.headers?.['X-Auth-Portal'] || getPortalFromPath();
-
-    if (error.response?.status === 401 && !originalRequest._retry && PORTAL_CONFIG[portal]) {
-      if (portalLocks.get(portal)) {
-        return new Promise((resolve, reject) => {
-          const queue = portalQueues.get(portal) || [];
-          queue.push({ resolve, reject });
-          portalQueues.set(portal, queue);
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        });
-      }
-
-      portalLocks.set(portal, true);
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !shouldSkipRefresh(originalRequest.url)
+    ) {
       originalRequest._retry = true;
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}${PORTAL_CONFIG[portal].loginPath}/refresh-token`,
-          {},
-          {
-            withCredentials: true,
-            headers: { 'X-Auth-Portal': portal },
-          }
-        );
+        refreshPromise ??= axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        const response = await refreshPromise;
+        refreshPromise = null;
 
         const { accessToken, user } = response.data.data;
-        const current = readPortalSession(portal) || {};
-        const nextState = {
-          ...current,
-          user: user || current.user,
-          accessToken,
-          isAuthenticated: true,
-          isLoading: false,
-        };
-        writePortalSession(portal, nextState);
-        processQueue(portal, null, accessToken);
+        useAuthStore.getState().setAuth(user, accessToken);
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        processQueue(portal, refreshError, null);
-        clearPortalSession(portal);
-        window.location.href = `/login/${portal === 'clinic-owner' ? 'clinic' : portal}`;
+        refreshPromise = null;
+        useAuthStore.getState().clearAuth();
         return Promise.reject(refreshError);
-      } finally {
-        portalLocks.set(portal, false);
       }
     }
 

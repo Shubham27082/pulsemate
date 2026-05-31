@@ -38,6 +38,14 @@ const ACTION_CONFIG = {
   },
 };
 
+const documentItemsForClinic = (clinic) =>
+  [
+    ['Clinic License', clinic.licenseDocumentUrl || clinic.clinicLicenseDocument],
+    ['Medical Establishment Certificate', clinic.medicalEstablishmentCertificateUrl],
+    ['GST Certificate', clinic.gstCertificateUrl],
+    ['PAN Card', clinic.panCardUrl],
+  ].filter(([, value]) => value);
+
 const ClinicApprovals = () => {
   const [activeTab, setActiveTab] = useState('clinics');
   const [clinics, setClinics] = useState([]);
@@ -170,25 +178,84 @@ const ClinicApprovals = () => {
         ) : (
           <div className="space-y-4">
             {activeTab === 'clinics'
-              ? clinics.map((clinic) => (
+                ? clinics.map((clinic) => (
                   <div key={clinic.id} className="card">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-lg font-semibold text-text-primary">{clinic.name}</h3>
                           <StatusBadge status={clinic.approvalStatus} />
+                          {clinic.clinicType ? <span className="badge badge-info text-xs">{clinic.clinicType}</span> : null}
                         </div>
                         <div className="grid gap-2 text-sm text-text-muted sm:grid-cols-2">
                           <p>Owner: {clinic.owner?.name || 'Unknown'} ({clinic.owner?.email || clinic.owner?.mobile})</p>
                           <p>Clinic phone: {clinic.phone || 'Not provided'}</p>
-                          <p>Location: {[clinic.city, clinic.state, clinic.pincode].filter(Boolean).join(', ') || 'Not provided'}</p>
+                          <p>Location: {[clinic.city, clinic.district, clinic.state, clinic.pincode].filter(Boolean).join(', ') || 'Not provided'}</p>
                           <p>Opening hours: {clinic.openingHours || 'Not provided'}</p>
+                          <p>Registration no: {clinic.clinicRegistrationNumber || 'Not provided'}</p>
+                          <p>Doctors planned: {clinic.doctorCount ?? 'Not provided'}</p>
                         </div>
+
                         <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-700">
                           <p><span className="font-semibold">Address:</span> {clinic.address || 'Not provided'}</p>
                           <p className="mt-2"><span className="font-semibold">Specialties:</span> {clinic.specialties?.length ? clinic.specialties.join(', ') : 'Not provided'}</p>
-                          <p className="mt-2"><span className="font-semibold">License:</span> {clinic.clinicLicenseDocument || 'Not provided'}</p>
+                          <p className="mt-2"><span className="font-semibold">Consultation modes:</span> {clinic.consultationModes?.length ? clinic.consultationModes.join(', ') : 'Not provided'}</p>
+                          <p className="mt-2"><span className="font-semibold">Facilities:</span> {clinic.facilities?.length ? clinic.facilities.join(', ') : 'Not provided'}</p>
+                          <p className="mt-2"><span className="font-semibold">Languages:</span> {clinic.languagesSpoken?.length ? clinic.languagesSpoken.join(', ') : 'Not provided'}</p>
                           {clinic.gstNumber ? <p className="mt-2"><span className="font-semibold">GST:</span> {clinic.gstNumber}</p> : null}
+                          {clinic.panNumber ? <p className="mt-2"><span className="font-semibold">PAN:</span> {clinic.panNumber}</p> : null}
+                          {clinic.googleMapsLocation ? (
+                            <p className="mt-2">
+                              <span className="font-semibold">Maps:</span>{' '}
+                              {clinic.googleMapsLocation.startsWith('http') ? (
+                                <a href={clinic.googleMapsLocation} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                  Open location
+                                </a>
+                              ) : (
+                                clinic.googleMapsLocation
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                            <p className="font-semibold text-slate-900">Documents</p>
+                            <div className="mt-3 space-y-2">
+                              {documentItemsForClinic(clinic).length ? (
+                                documentItemsForClinic(clinic).map(([label, value]) => (
+                                  <p key={label}>
+                                    <span className="font-semibold">{label}:</span>{' '}
+                                    {String(value).startsWith('http') ? (
+                                      <a href={value} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                        Open file
+                                      </a>
+                                    ) : (
+                                      String(value)
+                                    )}
+                                  </p>
+                                ))
+                              ) : (
+                                <p>No documents attached</p>
+                              )}
+                              {clinic.additionalDocuments?.length ? (
+                                <p>
+                                  <span className="font-semibold">Additional docs:</span> {clinic.additionalDocuments.join(', ')}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                            <p className="font-semibold text-slate-900">Operations Snapshot</p>
+                            <div className="mt-3 space-y-2">
+                              <p><span className="font-semibold">Avg consultation:</span> {clinic.avgConsultationMinutes ? `${clinic.avgConsultationMinutes} min` : 'Not provided'}</p>
+                              <p><span className="font-semibold">Slot duration:</span> {clinic.appointmentSlotMinutes ? `${clinic.appointmentSlotMinutes} min` : 'Not provided'}</p>
+                              <p><span className="font-semibold">Daily capacity:</span> {clinic.dailyPatientCapacity ?? 'Not provided'}</p>
+                              <p><span className="font-semibold">Payments:</span> {clinic.paymentMethods?.length ? clinic.paymentMethods.join(', ') : 'Not provided'}</p>
+                              <p><span className="font-semibold">Insurance:</span> {clinic.insuranceSupported?.length ? clinic.insuranceSupported.join(', ') : 'Not provided'}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
 

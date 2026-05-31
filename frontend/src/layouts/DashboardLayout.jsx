@@ -23,32 +23,32 @@ const Icon = {
 
 const NAV_ITEMS = {
   SUPER_ADMIN: [
-    { path: '/admin',         label: 'Dashboard',   icon: Icon.Chart    },
+    { path: '/admin/dashboard', label: 'Dashboard', icon: Icon.Chart },
     { path: '/admin/clinics', label: 'Clinics',      icon: Icon.Hospital },
     { path: '/admin/users',   label: 'Users',        icon: Icon.Users    },
   ],
   CLINIC_OWNER: [
-    { path: '/owner',               label: 'Dashboard',    icon: Icon.Chart    },
-    { path: '/owner/clinic',        label: 'My Clinic',    icon: Icon.Hospital },
-    { path: '/owner/doctors',       label: 'Doctors',      icon: Icon.User     },
-    { path: '/owner/receptionists', label: 'Receptionists',icon: Icon.Users    },
-    { path: '/owner/appointments',  label: 'Appointments', icon: Icon.Calendar },
-    { path: '/owner/queue',         label: 'Queue',        icon: Icon.Queue    },
+    { path: '/clinic/dashboard', label: 'Dashboard', icon: Icon.Chart },
+    { path: '/clinic/profile', label: 'My Clinic', icon: Icon.Hospital },
+    { path: '/clinic/doctors', label: 'Doctors', icon: Icon.User },
+    { path: '/clinic/receptionists', label: 'Receptionists', icon: Icon.Users },
+    { path: '/clinic/appointments', label: 'Appointments', icon: Icon.Calendar },
+    { path: '/clinic/queue', label: 'Queue', icon: Icon.Queue },
   ],
   DOCTOR: [
-    { path: '/doctor',              label: 'Dashboard',    icon: Icon.Chart    },
+    { path: '/doctor/dashboard',    label: 'Dashboard',    icon: Icon.Chart    },
     { path: '/doctor/appointments', label: 'Appointments', icon: Icon.Calendar },
     { path: '/doctor/queue',        label: 'My Queue',     icon: Icon.Queue    },
     { path: '/doctor/profile',      label: 'Profile',      icon: Icon.User     },
   ],
   RECEPTIONIST: [
-    { path: '/reception',            label: 'Dashboard',    icon: Icon.Chart   },
-    { path: '/reception/queue',      label: "Today's Queue",icon: Icon.Queue   },
-    { path: '/reception/walk-in',    label: 'Walk-in',      icon: Icon.Walk    },
-    { path: '/reception/follow-up',  label: 'Follow-up',    icon: Icon.Refresh },
+    { path: '/receptionist/dashboard', label: 'Dashboard', icon: Icon.Chart },
+    { path: '/receptionist/queue', label: "Today's Queue", icon: Icon.Queue },
+    { path: '/receptionist/walk-in', label: 'Walk-in', icon: Icon.Walk },
+    { path: '/receptionist/follow-up', label: 'Follow-up', icon: Icon.Refresh },
   ],
   PATIENT: [
-    { path: '/patient',               label: 'Home',         icon: Icon.Home     },
+    { path: '/patient/home',          label: 'Home',         icon: Icon.Home     },
     { path: '/patient/search',        label: 'Find Doctors', icon: Icon.Search   },
     { path: '/patient/appointments',  label: 'Appointments', icon: Icon.Calendar },
     { path: '/patient/prescriptions', label: 'Prescriptions',icon: Icon.Pill     },
@@ -67,10 +67,18 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate  = useNavigate();
 
-  const hasLimitedAccess = ['DOCTOR', 'CLINIC_OWNER'].includes(user?.role) && user?.approvalStatus && user.approvalStatus !== 'VERIFIED';
-  const navItems = hasLimitedAccess
-    ? (NAV_ITEMS[user?.role] || []).filter((item) => item.path === (user?.role === 'DOCTOR' ? '/doctor' : '/owner'))
+  const hasLimitedAccess = ['DOCTOR', 'CLINIC_OWNER'].includes(user?.role) && user?.status && user.status !== 'VERIFIED';
+  let navItems = hasLimitedAccess
+    ? (NAV_ITEMS[user?.role] || []).filter((item) => item.path === (user?.role === 'DOCTOR' ? '/doctor/dashboard' : '/clinic/dashboard'))
     : (NAV_ITEMS[user?.role] || []);
+
+  if (user?.role === 'SUPER_ADMIN') {
+    if (user?.adminLevel === 'FINANCE') {
+      navItems = navItems.filter((item) => ['/admin/dashboard', '/admin/users'].includes(item.path));
+    } else if (user?.adminLevel === 'SUPPORT') {
+      navItems = navItems.filter((item) => ['/admin/dashboard', '/admin/clinics', '/admin/users'].includes(item.path));
+    }
+  }
 
   const handleLogout = async () => {
     await logout();
@@ -79,7 +87,7 @@ const DashboardLayout = ({ children }) => {
   };
 
   const isActive = (path) => {
-    const roots = ['/patient', '/doctor', '/owner', '/admin', '/reception'];
+    const roots = ['/patient/home', '/doctor/dashboard', '/clinic/dashboard', '/admin/dashboard', '/receptionist/dashboard'];
     if (roots.includes(path)) return location.pathname === path;
     return location.pathname.startsWith(path);
   };
@@ -142,7 +150,7 @@ const DashboardLayout = ({ children }) => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'User'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.mobile}</p>
+            <p className="text-xs text-gray-400 truncate">{user?.phone}</p>
           </div>
         </div>
         <button

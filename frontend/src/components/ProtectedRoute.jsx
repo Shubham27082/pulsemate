@@ -1,57 +1,75 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { getPortalFromPath } from '../utils/authScope';
 
-const ROLE_HOME = {
-  SUPER_ADMIN: '/admin',
-  CLINIC_OWNER: '/owner',
-  DOCTOR: '/doctor',
-  RECEPTIONIST: '/reception',
-  PATIENT: '/patient',
+export const ROLE_HOME = {
+  PATIENT: '/patient/home',
+  CLINIC_OWNER: '/clinic/dashboard',
+  DOCTOR: '/doctor/dashboard',
+  RECEPTIONIST: '/receptionist/dashboard',
+  SUPER_ADMIN: '/admin/dashboard',
 };
 
-const getLoginRouteForPortal = (portal) =>
-  `/login/${portal === 'clinic-owner' ? 'clinic' : portal}`;
+const getLoginRoute = (pathname) => {
+  if (pathname.startsWith('/patient')) return '/login';
+  if (pathname.startsWith('/register')) return '/portal';
+  if (pathname.startsWith('/clinic')) return '/portal';
+  if (pathname.startsWith('/doctor')) return '/portal';
+  if (pathname.startsWith('/owner')) return '/portal';
+  if (pathname.startsWith('/reception')) return '/portal';
+  if (pathname.startsWith('/receptionist')) return '/portal';
+  if (pathname.startsWith('/admin')) return '/admin';
+  return '/login';
+};
 
-const hasLimitedApprovalAccess = (user) =>
-  ['DOCTOR', 'CLINIC_OWNER'].includes(user?.role) && user?.approvalStatus && user.approvalStatus !== 'VERIFIED';
+const canAccessPendingRoute = (pathname, role) => {
+  const allowedHome = ROLE_HOME[role];
+  return pathname === '/verification-pending' || pathname === allowedHome;
+};
 
-const ProtectedRoute = ({ children, roles }) => {
+const ProtectedRoute = ({ children, roles, adminLevels }) => {
   const location = useLocation();
-  const portal = getPortalFromPath(location.pathname);
-  const session = useAuthStore((state) => state.sessions[portal]);
+  const { user, isAuthenticated, isLoading } = useAuthStore();
 
-  if (!session?.isAuthenticated) {
-    return <Navigate to={getLoginRouteForPortal(portal)} state={{ from: location }} replace />;
+  if (isLoading) {
+    return <div className="min-h-screen bg-gray-50" />;
   }
 
-  if (roles && !roles.includes(session.user?.role)) {
-    const home = ROLE_HOME[session.user?.role] || '/login';
-    return <Navigate to={home} replace />;
+  if (!isAuthenticated || !user) {
+    return <Navigate to={getLoginRoute(location.pathname)} state={{ from: location }} replace />;
   }
 
-  if (hasLimitedApprovalAccess(session.user)) {
-    const home = ROLE_HOME[session.user.role];
-    if (location.pathname !== home) {
-      return <Navigate to={home} replace />;
-    }
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to={ROLE_HOME[user.role] || '/login'} replace />;
+  }
+
+  if (
+    user.role === 'SUPER_ADMIN' &&
+    Array.isArray(adminLevels) &&
+    adminLevels.length > 0 &&
+    !adminLevels.includes(user.adminLevel)
+  ) {
+    return <Navigate to={ROLE_HOME[user.role] || '/admin/dashboard'} replace />;
+  }
+
+  if (
+    ['CLINIC_OWNER', 'DOCTOR'].includes(user.role) &&
+    user.status !== 'VERIFIED' &&
+    !canAccessPendingRoute(location.pathname, user.role)
+  ) {
+    return <Navigate to="/verification-pending" replace />;
   }
 
   return children;
 };
 
 export const PublicRoute = ({ children }) => {
-  const location = useLocation();
-  const portal = getPortalFromPath(location.pathname);
-  const session = useAuthStore((state) => state.sessions[portal]);
+  const { user, isAuthenticated, isLoading } = useAuthStore();
 
-  if (session?.isAuthenticated && session?.user) {
-    const home = ROLE_HOME[session.user.role] || '/patient';
-    return <Navigate to={home} replace />;
+  if (!isLoading && isAuthenticated && user) {
+    return <Navigate to={ROLE_HOME[user.role] || '/patient/home'} replace />;
   }
 
   return children;
 };
 
-export { ROLE_HOME };
 export default ProtectedRoute;

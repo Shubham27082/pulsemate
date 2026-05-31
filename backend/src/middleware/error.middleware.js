@@ -26,6 +26,17 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  if (err.name === 'MulterError') {
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'File size must be 8 MB or less'
+      : err.message;
+
+    return res.status(400).json({
+      success: false,
+      message,
+    });
+  }
+
   // Custom thrown errors with status
   if (err.status) {
     return res.status(err.status).json({

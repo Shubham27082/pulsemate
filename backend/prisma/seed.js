@@ -7,6 +7,9 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting PulseMate seed...');
 
+  const adminEmail = 'sahilnaik1515@gmail.com';
+  const adminPassword = 'Nkabu18$';
+
   await prisma.auditLog.deleteMany();
   await prisma.fcmToken.deleteMany();
   await prisma.payment.deleteMany();
@@ -27,15 +30,18 @@ async function main() {
   await prisma.user.deleteMany();
 
   const passwordHash = await bcrypt.hash('Password@123', 12);
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
   const rootAdmin = await prisma.user.create({
     data: {
-      name: 'Root Admin',
-      mobile: '+919000000000',
-      email: 'root@pulsemate.com',
+      name: 'Sahil Naik',
+      mobile: '+919000000001',
+      email: adminEmail,
       role: 'SUPER_ADMIN',
       approvalStatus: 'VERIFIED',
-      passwordHash,
+      passwordHash: adminPasswordHash,
+      isPhoneVerified: true,
+      isEmailVerified: true,
       adminProfile: {
         create: { level: 'ROOT' },
       },
@@ -45,12 +51,14 @@ async function main() {
 
   const superAdmin = await prisma.user.create({
     data: {
-      name: 'Super Admin',
-      mobile: '+919000000001',
+      name: 'Platform Admin',
+      mobile: '+919000000000',
       email: 'admin@pulsemate.com',
       role: 'SUPER_ADMIN',
       approvalStatus: 'VERIFIED',
       passwordHash,
+      isPhoneVerified: true,
+      isEmailVerified: true,
       adminProfile: {
         create: { level: 'SUPER_ADMIN', createdById: rootAdmin.id },
       },
@@ -290,7 +298,7 @@ async function main() {
   }
 
   console.log('Seed completed successfully');
-  console.log('Root Admin: root@pulsemate.com / Password@123');
+  console.log(`Root Admin: ${adminEmail} / ${adminPassword}`);
   console.log('Super Admin: admin@pulsemate.com / Password@123');
   console.log('Clinic Owner: owner@pulsemate.com / Password@123');
   console.log('Doctor: pooja@pulsemate.com / Password@123');

@@ -27,5 +27,11 @@ export const getAdminUsers = (params) =>
 export const updateUserStatus = (id, isActive) =>
   api.patch(`/admin/users/${id}/status`, { isActive });
 
-export const createStaffUser = (data) =>
-  api.post('/admin/users', data);
+export const createAdminUser = (data) =>
+  api.post('/admin/admins', data);
+
+export const deleteAdminUser = (id) =>
+  api.delete(`/admin/admins/${id}`);
+
+export const resetDatabase = () =>
+  api.post('/admin/reset-database');

@@ -29,7 +29,7 @@ const RegisterPage = () => {
     if (!form.mobile.trim()) return toast.error('Enter your mobile number');
     setIsLoading(true);
     try {
-      const res = await sendOtp(form.mobile, 'SIGNUP');
+      const res = await sendOtp(form.mobile);
       setStep('otp');
       startCountdown();
       if (res.data.data?.devOtp) setDevOtp(res.data.data.devOtp);
@@ -44,11 +44,11 @@ const RegisterPage = () => {
     if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
     setIsLoading(true);
     try {
-      const res = await verifyOtp(form.mobile, otp, 'SIGNUP', form.name);
+      const res = await verifyOtp(form.mobile, otp, form.name);
       const { accessToken, user } = res.data.data;
       setAuth(user, accessToken);
       toast.success('Account created!');
-      navigate('/patient');
+      navigate('/patient/home');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Verification failed');
     } finally { setIsLoading(false); }
@@ -78,7 +78,7 @@ const RegisterPage = () => {
             <input
               id="mobile" type="tel" required
               className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition bg-white"
-              placeholder="+91 98765 43210"
+              placeholder="9876543210"
               value={form.mobile}
               onChange={(e) => setForm({ ...form, mobile: e.target.value })}
             />
@@ -144,7 +144,7 @@ const RegisterPage = () => {
       <div className="mt-6 pt-6 border-t border-gray-100 text-center">
         <p className="text-sm text-gray-500">
           Already have an account?{' '}
-          <Link to="/login" className="text-primary-600 font-semibold hover:text-primary-700">Sign in</Link>
+          <Link to="/login" className="text-primary-600 font-semibold hover:text-primary-700">Patient sign in</Link>
         </p>
         <p className="mt-3 text-sm text-gray-500">
           Applying as a doctor or clinic owner?{' '}

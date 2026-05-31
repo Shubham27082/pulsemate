@@ -94,7 +94,7 @@ const SelectRolePage = () => {
           {ROLES.map((role) => (
             <button
               key={role.key}
-              onClick={() => navigate(`/login/${role.key}`)}
+              onClick={() => navigate(role.key === 'patient' ? '/login' : '/staff/login')}
               className={`group flex items-start gap-4 rounded-2xl border-2 p-5 text-left transition-all duration-200 ${role.color}`}
             >
               <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${role.iconBg} ${role.iconColor}`}>

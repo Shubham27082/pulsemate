@@ -1,57 +1,71 @@
 const crypto = require('crypto');
 const passwordResetRepository = require('../repositories/password-reset.repository');
-const userRepository = require('../repositories/user.repository');
-const { hashToken, hashValue } = require('../utils/crypto');
+const { hashToken, hashPassword } = require('../utils/hash');
 const { validatePasswordStrength } = require('../utils/password-policy');
-const { createAuditLog } = require('./audit.service');
 
-const RESET_EXPIRY_MS = 30 * 60 * 1000;
+const DEFAULT_RESET_EXPIRY_MS = 15 * 60 * 1000;
+const SUPER_ADMIN_RESET_EXPIRY_MS = 10 * 60 * 1000;
 
-const issueResetToken = async (user, metadata = {}) => {
-  await passwordResetRepository.invalidateForUser(user.id);
+const hashResetToken = (rawToken) => hashToken(rawToken);
+
+const invalidateOldResetTokens = async (userId, purpose = undefined) => {
+  if (purpose) {
+    return passwordResetRepository.invalidateForUserByPurpose(userId, purpose);
+  }
+  return passwordResetRepository.invalidateForUser(userId);
+};
+
+const createPasswordResetToken = async (user) => {
+  const purpose = user.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN_RESET' : 'FORGOT_PASSWORD';
+  const expiresAt = new Date(
+    Date.now() + (purpose === 'SUPER_ADMIN_RESET' ? SUPER_ADMIN_RESET_EXPIRY_MS : DEFAULT_RESET_EXPIRY_MS)
+  );
+
+  await invalidateOldResetTokens(user.id);
+
   const rawToken = crypto.randomBytes(32).toString('hex');
   await passwordResetRepository.create({
     userId: user.id,
-    tokenHash: hashToken(rawToken),
-    expiresAt: new Date(Date.now() + RESET_EXPIRY_MS),
+    tokenHash: hashResetToken(rawToken),
+    purpose,
+    expiresAt,
   });
 
-  await createAuditLog({
-    userId: user.id,
-    action: 'PASSWORD_RESET_REQUESTED',
-    entityType: 'User',
-    entityId: user.id,
-    ipAddress: metadata.ipAddress,
-  });
-
-  return rawToken;
+  return {
+    rawToken,
+    purpose,
+    expiresAt,
+  };
 };
 
-const resetPassword = async (rawToken, nextPassword, metadata = {}) => {
-  validatePasswordStrength(nextPassword);
-  const stored = await passwordResetRepository.findActiveByHash(hashToken(rawToken));
-  if (!stored) {
-    const error = new Error('Reset token is invalid or expired');
+const validatePasswordResetToken = async (rawToken) => {
+  const stored = await passwordResetRepository.findByHash(hashResetToken(rawToken));
+
+  if (!stored || stored.usedAt || stored.expiresAt <= new Date()) {
+    const error = new Error('Reset link is invalid or expired.');
     error.status = 400;
     throw error;
   }
 
-  const passwordHash = await hashValue(nextPassword);
-  await userRepository.update(stored.userId, { passwordHash });
-  await passwordResetRepository.markUsed(stored.id);
+  return stored;
+};
 
-  await createAuditLog({
-    userId: stored.userId,
-    action: 'PASSWORD_RESET_COMPLETED',
-    entityType: 'User',
-    entityId: stored.userId,
-    ipAddress: metadata.ipAddress,
-  });
+const markTokenUsed = async (tokenId) => passwordResetRepository.markUsed(tokenId);
 
-  return stored.user;
+const applyPasswordReset = async (user, newPassword) => {
+  validatePasswordStrength(newPassword);
+  return {
+    passwordHash: await hashPassword(newPassword),
+  };
 };
 
 module.exports = {
-  issueResetToken,
-  resetPassword,
+  createPasswordResetToken,
+  validatePasswordResetToken,
+  markTokenUsed,
+  invalidateOldResetTokens,
+  hashResetToken,
+  applyPasswordReset,
+  DEFAULT_RESET_EXPIRY_MS,
+  SUPER_ADMIN_RESET_EXPIRY_MS,
 };

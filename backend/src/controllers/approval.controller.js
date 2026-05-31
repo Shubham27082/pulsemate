@@ -5,8 +5,14 @@ const { createAuditLog } = require('../services/audit.service');
 const listPendingClinics = async (req, res, next) => {
   try {
     const clinics = await prisma.clinic.findMany({
-      where: { approvalStatus: 'PENDING' },
-      include: { owner: { include: { adminProfile: true } } },
+      where: { approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] } },
+      include: {
+        owner: {
+          include: {
+            adminProfile: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
     return sendSuccess(res, { clinics });
@@ -18,7 +24,7 @@ const listPendingClinics = async (req, res, next) => {
 const listPendingDoctors = async (req, res, next) => {
   try {
     const doctors = await prisma.user.findMany({
-      where: { role: 'DOCTOR', approvalStatus: 'PENDING' },
+      where: { role: 'DOCTOR', approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] } },
       include: { doctorProfile: true },
       orderBy: { createdAt: 'asc' },
     });

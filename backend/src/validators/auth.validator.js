@@ -1,15 +1,19 @@
 const Joi = require('joi');
 const { PASSWORD_REGEX } = require('../utils/password-policy');
+const { normalizeMobileNumber } = require('../utils/mobile');
 
 const mobileRegex = /^\+?[1-9]\d{9,14}$/;
+const normalizeMobileField = (value) => normalizeMobileNumber(value);
+const mobileField = Joi.string().custom(normalizeMobileField).pattern(mobileRegex).required();
+const optionalMobileField = Joi.string().custom(normalizeMobileField).pattern(mobileRegex).optional();
 
 const sendOtpSchema = Joi.object({
-  mobile: Joi.string().pattern(mobileRegex).required(),
+  mobile: mobileField,
   purpose: Joi.string().valid('LOGIN', 'SIGNUP', 'RESET_PASSWORD', 'VERIFY_MOBILE').default('LOGIN'),
 });
 
 const verifyOtpSchema = Joi.object({
-  mobile: Joi.string().pattern(mobileRegex).required(),
+  mobile: mobileField,
   otp: Joi.string().length(6).pattern(/^\d+$/).required(),
   purpose: Joi.string().valid('LOGIN', 'SIGNUP', 'RESET_PASSWORD', 'VERIFY_MOBILE').default('LOGIN'),
   name: Joi.string().min(2).max(100).optional(),
@@ -17,7 +21,7 @@ const verifyOtpSchema = Joi.object({
 
 const loginPasswordSchema = Joi.object({
   email: Joi.string().email().optional(),
-  mobile: Joi.string().pattern(mobileRegex).optional(),
+  mobile: optionalMobileField,
   password: Joi.string().required(),
 }).or('email', 'mobile');
 
@@ -28,24 +32,28 @@ const strongPassword = Joi.string().pattern(PASSWORD_REGEX).required().messages(
 
 const clinicOwnerRegisterSchema = Joi.object({
   ownerName: Joi.string().min(2).max(120).required(),
-  phone: Joi.string().pattern(mobileRegex).required(),
+  phone: mobileField,
   email: Joi.string().email().required(),
   password: strongPassword,
   clinicName: Joi.string().min(2).max(150).required(),
+  clinicType: Joi.string().min(2).max(80).optional(),
+  clinicTypeOther: Joi.string().max(120).allow('', null).optional(),
   clinicAddress: Joi.string().min(5).max(255).required(),
   city: Joi.string().min(2).max(80).required(),
   state: Joi.string().min(2).max(80).required(),
+  district: Joi.string().min(2).max(80).required(),
   pincode: Joi.string().min(4).max(12).required(),
-  clinicPhone: Joi.string().pattern(mobileRegex).required(),
+  clinicPhone: mobileField,
   clinicLicenseDocument: Joi.string().uri().required(),
   gstNumber: Joi.string().allow('', null).optional(),
   openingHours: Joi.string().min(3).max(120).required(),
   specialties: Joi.array().items(Joi.string().min(2).max(60)).min(1).required(),
+  specialtyOther: Joi.string().max(120).allow('', null).optional(),
 });
 
 const doctorRegisterSchema = Joi.object({
   fullName: Joi.string().min(2).max(120).required(),
-  phone: Joi.string().pattern(mobileRegex).required(),
+  phone: mobileField,
   email: Joi.string().email().required(),
   password: strongPassword,
   qualification: Joi.string().min(2).max(120).required(),
@@ -62,7 +70,7 @@ const doctorRegisterSchema = Joi.object({
 
 const receptionistCreateSchema = Joi.object({
   fullName: Joi.string().min(2).max(120).required(),
-  phone: Joi.string().pattern(mobileRegex).required(),
+  phone: mobileField,
   email: Joi.string().email().required(),
   password: strongPassword,
   assignedClinic: Joi.string().required(),
@@ -70,7 +78,7 @@ const receptionistCreateSchema = Joi.object({
 
 const adminCreateSchema = Joi.object({
   fullName: Joi.string().min(2).max(120).required(),
-  phone: Joi.string().pattern(mobileRegex).required(),
+  phone: mobileField,
   email: Joi.string().email().required(),
   password: strongPassword,
   level: Joi.string().valid('SUPER_ADMIN', 'SUPPORT', 'FINANCE').required(),
@@ -78,7 +86,7 @@ const adminCreateSchema = Joi.object({
 
 const forgotPasswordSchema = Joi.object({
   email: Joi.string().email().optional(),
-  mobile: Joi.string().pattern(mobileRegex).optional(),
+  mobile: optionalMobileField,
 }).or('email', 'mobile');
 
 const resetPasswordSchema = Joi.object({

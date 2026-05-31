@@ -18,12 +18,14 @@ const {
   getClinicRevenue,
   getClinicAppointments,
 } = require('../controllers/clinic.controller');
+const { createReceptionistHandler } = require('../controllers/auth.controller');
 const { validate, createClinicSchema, updateClinicSchema, addStaffSchema } = require('../validators/clinic.validator');
 
 router.use(authenticate);
 
 router.post('/', authorize('CLINIC_OWNER', 'SUPER_ADMIN', 'PATIENT'), validate(createClinicSchema), createClinic);
 router.get('/my', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), getMyClinics);
+router.post('/receptionists', authorize('CLINIC_OWNER'), requireApprovalStatuses('VERIFIED'), createReceptionistHandler);
 router.get('/:id', getClinic);
 router.patch('/:id', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), validate(updateClinicSchema), updateClinic);
 router.post('/:id/staff', authorize('CLINIC_OWNER', 'SUPER_ADMIN'), requireApprovalStatuses('VERIFIED'), requireClinicVerified, validate(addStaffSchema), addStaff);

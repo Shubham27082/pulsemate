@@ -105,6 +105,10 @@ All staff passwords: `Password@123`
 
 > **Dev OTP:** Since `OTP_PROVIDER=console`, the OTP prints in the backend terminal AND is returned in the API response. No SMS needed for testing.
 
+> **Clinic email verification:** For local development without a verified domain, keep `EMAIL_PROVIDER=console` and use the terminal output to test the email OTP flow. For production, switch to `Resend` with a verified domain and `RESEND_API_KEY` plus `RESEND_FROM_EMAIL`.
+>
+> SMTP is still available as an optional fallback, but `Resend` is the cleaner choice once you have a verified sender/domain.
+
 ---
 
 ## 🗂️ Project Structure

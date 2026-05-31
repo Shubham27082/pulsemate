@@ -1,11 +1,12 @@
 const prisma = require('../config/database');
 
-const findRecentUnverified = (mobile, purpose, since) =>
+const findRecentActive = (mobile, purpose, since) =>
   prisma.otpVerification.findFirst({
     where: {
       mobile,
       purpose,
-      verifiedAt: null,
+      isUsed: false,
+      expiresAt: { gt: new Date() },
       createdAt: { gte: since },
     },
     orderBy: { createdAt: 'desc' },
@@ -13,8 +14,15 @@ const findRecentUnverified = (mobile, purpose, since) =>
 
 const invalidateOutstanding = (mobile, purpose) =>
   prisma.otpVerification.updateMany({
-    where: { mobile, purpose, verifiedAt: null },
-    data: { verifiedAt: new Date() },
+    where: {
+      mobile,
+      purpose,
+      isUsed: false,
+    },
+    data: {
+      isUsed: true,
+      verifiedAt: new Date(),
+    },
   });
 
 const create = (data) => prisma.otpVerification.create({ data });
@@ -24,17 +32,16 @@ const findLatestValid = (mobile, purpose) =>
     where: {
       mobile,
       purpose,
-      verifiedAt: null,
+      isUsed: false,
       expiresAt: { gt: new Date() },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-const update = (id, data) =>
-  prisma.otpVerification.update({ where: { id }, data });
+const update = (id, data) => prisma.otpVerification.update({ where: { id }, data });
 
 module.exports = {
-  findRecentUnverified,
+  findRecentActive,
   invalidateOutstanding,
   create,
   findLatestValid,

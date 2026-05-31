@@ -27,7 +27,7 @@ const initializeSocket = (io) => {
   });
 
   io.on('connection', (socket) => {
-    logger.info(`Socket connected: ${socket.id} | User: ${socket.user?.userId || 'anonymous'}`);
+    logger.info(`Socket connected: ${socket.id} | User: ${socket.user?.sub || 'anonymous'}`);
 
     /**
      * Patient joins queue room to receive live updates
@@ -57,7 +57,7 @@ const initializeSocket = (io) => {
 
       const roomName = `queue:${clinicId}:${doctorId}:${date}`;
       socket.join(roomName);
-      logger.info(`Staff ${socket.user.userId} joined room: ${roomName}`);
+      logger.info(`Staff ${socket.user.sub} joined room: ${roomName}`);
 
       socket.emit('queue:joined', { roomName, message: 'Connected to queue management' });
     });

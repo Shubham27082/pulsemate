@@ -1,123 +1,97 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
 const {
   patientSendOtpHandler,
   patientVerifyOtpHandler,
+  clinicOwnerSendOtpHandler,
+  clinicOwnerVerifyOtpHandler,
+  clinicOwnerSendEmailOtpHandler,
+  clinicOwnerVerifyEmailOtpHandler,
+  clinicOwnerUploadDocumentHandler,
   registerClinicOwnerHandler,
   registerDoctorHandler,
-  clinicOwnerLoginHandler,
-  doctorLoginHandler,
-  receptionistLoginHandler,
-  adminLoginHandler,
-  clinicOwnerRefreshHandler,
-  doctorRefreshHandler,
-  receptionistRefreshHandler,
-  adminRefreshHandler,
-  patientRefreshHandler,
-  clinicOwnerLogoutHandler,
-  doctorLogoutHandler,
-  receptionistLogoutHandler,
-  adminLogoutHandler,
-  patientLogoutHandler,
+  loginHandler,
   createReceptionistHandler,
   createAdminHandler,
+  lookupPincodeHandler,
   forgotPasswordHandler,
   resetPasswordHandler,
-  getMeHandler,
-  sendOtpHandler,
-  verifyOtpHandler,
-  loginPasswordHandler,
+  verifyResetTokenHandler,
   refreshTokenHandler,
   logoutHandler,
+  logoutAllHandler,
+  getMeHandler,
 } = require('../controllers/auth.controller');
+const { clinicOwnerUpload } = require('../middleware/upload.middleware');
+const { authenticateUser, requireSuperAdmin, requireAdminLevel, requireClinicOwner, requireVerifiedAccount } = require('../middleware/auth.middleware');
+const { otpSendLimiter, otpVerifyLimiter, loginLimiter, forgotPasswordLimiter, emailVerificationSendLimiter, emailVerificationVerifyLimiter, resetPasswordLimiter } = require('../middleware/rateLimit.middleware');
 const {
-  authenticate,
-  requireRole,
-  requireApprovalStatuses,
-  requireAdminLevel,
-  requireClinicVerified,
-} = require('../middleware/auth.middleware');
-const {
-  validate,
-  sendOtpSchema,
-  verifyOtpSchema,
-  loginPasswordSchema,
+  patientSendOtpSchema,
+  patientVerifyOtpSchema,
+  clinicOwnerOtpSendSchema,
+  clinicOwnerOtpVerifySchema,
+  clinicOwnerEmailVerificationSendSchema,
+  clinicOwnerEmailOtpVerifySchema,
+  clinicOwnerEmailVerificationTokenSchema,
   clinicOwnerRegisterSchema,
   doctorRegisterSchema,
-  receptionistCreateSchema,
-  adminCreateSchema,
+  commonLoginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-} = require('../validators/auth.validator');
+  verifyResetTokenSchema,
+  createReceptionistSchema,
+  adminCreateSchema,
+  validateRequest,
+  validateQuery,
+} = require('../validations/auth.validation');
 
 const router = express.Router();
 
-const isDev = process.env.NODE_ENV === 'development';
-const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : 5,
-  skip: () => isDev,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+router.post('/patient/send-otp', otpSendLimiter, validateRequest(patientSendOtpSchema), patientSendOtpHandler);
+router.post('/patient/verify-otp', otpVerifyLimiter, validateRequest(patientVerifyOtpSchema), patientVerifyOtpHandler);
+router.post('/clinic-owner/send-otp', otpSendLimiter, validateRequest(clinicOwnerOtpSendSchema), clinicOwnerSendOtpHandler);
+router.post('/clinic-owner/verify-otp', otpVerifyLimiter, validateRequest(clinicOwnerOtpVerifySchema), clinicOwnerVerifyOtpHandler);
+router.post('/clinic-owner/send-email-otp', emailVerificationSendLimiter, validateRequest(clinicOwnerEmailVerificationSendSchema), clinicOwnerSendEmailOtpHandler);
+router.post('/clinic-owner/verify-email-otp', emailVerificationVerifyLimiter, validateRequest(clinicOwnerEmailOtpVerifySchema), clinicOwnerVerifyEmailOtpHandler);
+router.post('/clinic-owner/send-email-verification', emailVerificationSendLimiter, validateRequest(clinicOwnerEmailVerificationSendSchema), clinicOwnerSendEmailOtpHandler);
+router.get('/clinic-owner/verify-email', emailVerificationVerifyLimiter, validateQuery(clinicOwnerEmailVerificationTokenSchema), clinicOwnerVerifyEmailOtpHandler);
+router.post('/send-email-verification', emailVerificationSendLimiter, validateRequest(clinicOwnerEmailVerificationSendSchema), clinicOwnerSendEmailOtpHandler);
+router.get('/verify-email-token', emailVerificationVerifyLimiter, validateQuery(clinicOwnerEmailVerificationTokenSchema), clinicOwnerVerifyEmailOtpHandler);
+router.post('/clinic-owner/upload-document', clinicOwnerUpload.single('file'), clinicOwnerUploadDocumentHandler);
+router.get('/pincode/:pincode', lookupPincodeHandler);
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : 10,
-  skip: () => isDev,
-});
+router.post('/clinic-owner/register', validateRequest(clinicOwnerRegisterSchema), registerClinicOwnerHandler);
+router.post('/doctor/register', validateRequest(doctorRegisterSchema), registerDoctorHandler);
 
-router.post('/patient/send-otp', otpLimiter, validate(sendOtpSchema), patientSendOtpHandler);
-router.post('/patient/verify-otp', otpLimiter, validate(verifyOtpSchema), patientVerifyOtpHandler);
-router.post('/patient/refresh-token', patientRefreshHandler);
-router.post('/patient/logout', authenticate, requireRole('PATIENT'), patientLogoutHandler);
+router.post('/login', loginLimiter, validateRequest(commonLoginSchema), loginHandler);
+router.post('/forgot-password', forgotPasswordLimiter, validateRequest(forgotPasswordSchema), forgotPasswordHandler);
+router.get('/verify-reset-token', validateQuery(verifyResetTokenSchema), verifyResetTokenHandler);
+router.post('/reset-password', resetPasswordLimiter, validateRequest(resetPasswordSchema), resetPasswordHandler);
+router.post('/refresh', refreshTokenHandler);
+router.post('/logout', logoutHandler);
+router.post('/logout-all', authenticateUser, logoutAllHandler);
+router.get('/me', authenticateUser, getMeHandler);
 
-router.post('/clinic-owner/register', validate(clinicOwnerRegisterSchema), registerClinicOwnerHandler);
-router.post('/clinic-owner/login', loginLimiter, validate(loginPasswordSchema), clinicOwnerLoginHandler);
-router.post('/clinic-owner/refresh-token', clinicOwnerRefreshHandler);
-router.post('/clinic-owner/logout', authenticate, requireRole('CLINIC_OWNER'), clinicOwnerLogoutHandler);
-
-router.post('/doctor/register', validate(doctorRegisterSchema), registerDoctorHandler);
-router.post('/doctor/login', loginLimiter, validate(loginPasswordSchema), doctorLoginHandler);
-router.post('/doctor/refresh-token', doctorRefreshHandler);
-router.post('/doctor/logout', authenticate, requireRole('DOCTOR'), doctorLogoutHandler);
-
-router.post('/receptionist/login', loginLimiter, validate(loginPasswordSchema), receptionistLoginHandler);
-router.post('/receptionist/refresh-token', receptionistRefreshHandler);
-router.post('/receptionist/logout', authenticate, requireRole('RECEPTIONIST'), receptionistLogoutHandler);
-
-router.post('/admin/login', loginLimiter, validate(loginPasswordSchema), adminLoginHandler);
-router.post('/admin/refresh-token', adminRefreshHandler);
-router.post('/admin/logout', authenticate, requireRole('SUPER_ADMIN'), adminLogoutHandler);
 router.post(
   '/admin/create',
-  authenticate,
-  requireRole('SUPER_ADMIN'),
+  authenticateUser,
+  requireSuperAdmin,
   requireAdminLevel('ROOT'),
-  validate(adminCreateSchema),
+  validateRequest(adminCreateSchema),
   createAdminHandler
 );
 
 router.post(
-  '/receptionists',
-  authenticate,
-  requireRole('CLINIC_OWNER'),
-  requireApprovalStatuses('VERIFIED'),
-  validate(receptionistCreateSchema),
-  requireClinicVerified,
+  '/clinic/receptionists',
+  authenticateUser,
+  requireClinicOwner,
+  requireVerifiedAccount,
+  validateRequest(createReceptionistSchema),
   createReceptionistHandler
 );
 
-router.post('/forgot-password', validate(forgotPasswordSchema), forgotPasswordHandler);
-router.post('/reset-password', validate(resetPasswordSchema), resetPasswordHandler);
-
-router.get('/me', authenticate, getMeHandler);
-
-// Backward compatibility endpoints while frontend is migrated
-router.post('/send-otp', otpLimiter, validate(sendOtpSchema), sendOtpHandler);
-router.post('/verify-otp', otpLimiter, validate(verifyOtpSchema), verifyOtpHandler);
-router.post('/login-password', loginLimiter, validate(loginPasswordSchema), loginPasswordHandler);
-router.post('/refresh', refreshTokenHandler);
-router.post('/logout', authenticate, logoutHandler);
+// Backward-compatible endpoints while the rest of the app migrates
+router.post('/send-otp', otpSendLimiter, validateRequest(patientSendOtpSchema), patientSendOtpHandler);
+router.post('/verify-otp', otpVerifyLimiter, validateRequest(patientVerifyOtpSchema), patientVerifyOtpHandler);
+router.post('/login-password', loginLimiter, validateRequest(commonLoginSchema), loginHandler);
 
 module.exports = router;
