@@ -1,0 +1,9 @@
+@echo off
+echo ========================================
+echo   PulseMate Frontend - Starting...
+echo ========================================
+cd frontend
+echo [1/2] Installing dependencies...
+call npm install
+echo [2/2] Starting Vite dev server on port 3000...
+call npx vite
