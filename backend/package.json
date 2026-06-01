@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
+    "build": "npx prisma generate",
+    "postinstall": "npx prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
