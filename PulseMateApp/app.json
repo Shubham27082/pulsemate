@@ -36,6 +36,12 @@
     "scheme": "pulsemate",
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "apiUrl": "https://pulsemate-backend.up.railway.app/api",
+      "eas": {
+        "projectId": "pulsemate-app"
+      }
+    }
   }
 }
