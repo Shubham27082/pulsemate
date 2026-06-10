@@ -12,6 +12,7 @@ const logger = require('./config/logger');
 const { errorHandler, notFound } = require('./middleware/error.middleware');
 const { initializeSocket } = require('./socket');
 const { startReminderJob } = require('./jobs/appointmentReminder.job');
+const { initFirebase } = require('./config/firebase');
 
 // Routes
 const authRoutes = require('./routes/auth.routes');
@@ -26,6 +27,8 @@ const approvalRoutes = require('./routes/approval.routes');
 const marketplaceRoutes = require('./routes/marketplace.routes');
 const sessionRoutes = require('./routes/session.routes');
 const availabilityRoutes = require('./routes/availability.routes');
+const deviceTokenRoutes = require('./routes/deviceToken.routes');
+const campaignRoutes = require('./routes/campaign.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -121,6 +124,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/device-token', deviceTokenRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFound);
@@ -150,6 +154,9 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     logger.info(`📱 LAN access: http://${localIP}:${PORT}`);
+
+    // Initialize Firebase Admin SDK
+    initFirebase();
 
     // Start scheduled jobs
     startReminderJob();

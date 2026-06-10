@@ -1,35 +1,18 @@
 const otpRepository = require('../repositories/otp.repository');
 const logger = require('../config/logger');
 const { generateOtp, hashOtp, verifyOtpHash } = require('../utils/hash');
+const { sendOtpSms } = require('./sms.service');
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10);
 const OTP_MAX_ATTEMPTS = parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10);
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60', 10);
 
 const dispatchOtp = async (mobile, otp) => {
-  const provider = process.env.OTP_PROVIDER || 'console';
-
-  switch (provider) {
-    case 'twilio': {
-      const twilio = require('twilio');
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      await client.messages.create({
-        body: `Your PulseMate OTP is ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: mobile,
-      });
-      break;
-    }
-    case 'msg91':
-      logger.info(`MSG91 OTP dispatch queued for ${mobile}`);
-      break;
-    case 'fast2sms':
-      logger.info(`Fast2SMS OTP dispatch queued for ${mobile}`);
-      break;
-    case 'console':
-    default:
-      logger.info(`[DEV OTP] ${mobile}: ${otp}`);
-      break;
+  try {
+    await sendOtpSms(mobile, otp);
+  } catch (err) {
+    // Never crash the request if SMS fails — log and continue
+    logger.error(`SMS dispatch failed for ${mobile}: ${err.message}`);
   }
 };
 

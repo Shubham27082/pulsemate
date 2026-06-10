@@ -34,6 +34,8 @@ model User {
   verifiedClinics      Clinic[]              @relation("ClinicVerifiedBy")
   doctorProfile        DoctorProfile?
   fcmTokens            FcmToken[]
+  notificationReads    NotificationRead[]
+  userNotifications    UserNotification[]
   passwordResetTokens  PasswordResetToken[]
   patientProfile       PatientProfile?
   payments             Payment[]             @relation("PatientPayments")
@@ -567,4 +569,81 @@ enum ClinicInviteStatus {
 enum PasswordResetPurpose {
   FORGOT_PASSWORD
   SUPER_ADMIN_RESET
+}
+
+// ─── Notification Read persistence ───────────────────────────────────────────
+model NotificationRead {
+  id             String   @id @default(uuid())
+  userId         String
+  notificationId String
+  readAt         DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationId])
+  @@map("notification_reads")
+}
+
+// ─── Admin Notification Campaigns ────────────────────────────────────────────
+model NotificationCampaign {
+  id                 String                   @id @default(uuid())
+  title              String
+  message            String
+  channel            NotificationChannel      @default(IN_APP)
+  targetType         NotificationTargetType   @default(ALL_USERS)
+  targetCity         String?
+  targetState        String?
+  targetUserIds      String[]                 @default([])
+  status             CampaignStatus           @default(DRAFT)
+  scheduledAt        DateTime?
+  sentAt             DateTime?
+  stoppedAt          DateTime?
+  createdByAdminId   String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  userNotifications  UserNotification[]
+
+  @@index([status])
+  @@index([channel])
+  @@map("notification_campaigns")
+}
+
+model UserNotification {
+  id          String               @id @default(uuid())
+  userId      String
+  campaignId  String?
+  title       String
+  message     String
+  channel     NotificationChannel  @default(IN_APP)
+  isRead      Boolean              @default(false)
+  sentAt      DateTime?
+  createdAt   DateTime             @default(now())
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    NotificationCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@index([userId])
+  @@index([campaignId])
+  @@map("user_notifications")
+}
+
+enum NotificationChannel {
+  PUSH
+  IN_APP
+  PUSH_AND_IN_APP
+}
+
+enum NotificationTargetType {
+  ALL_USERS
+  SELECTED_USERS
+  CITY
+  STATE
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  STOPPED
+  FAILED
 }

@@ -5,7 +5,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getMyNotifications, markNotificationRead as apiMarkRead, markAllNotificationsRead } from '../api/auth';
+import {
+  getMyNotifications,
+  markNotificationRead as apiMarkRead,
+  markAllNotificationsRead,
+  getInboxNotifications,
+  markInboxRead,
+  markAllInboxRead,
+} from '../api/auth';
 import { colors, shadow, radius } from '../theme';
 
 const FILTERS = [
@@ -14,6 +21,7 @@ const FILTERS = [
   { key: 'Queue Updates',icon: 'people-outline'        },
   { key: 'Reminders',    icon: 'notifications-outline' },
   { key: 'Offers',       icon: 'pricetag-outline'      },
+  { key: 'Updates',      icon: 'megaphone-outline'     },
 ];
 
 const fmtTime = (t) => {
@@ -37,36 +45,54 @@ const isToday = (t) => {
 
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
+  const [inboxNotifs,   setInboxNotifs]   = useState([]);
   const [filter, setFilter]     = useState('All');
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [readIds, setReadIds]   = useState(new Set());
+  const [inboxReadIds, setInboxReadIds] = useState(new Set());
 
   const load = useCallback(async () => {
     try {
-      const res = await getMyNotifications();
-      setNotifications(res.data.data.notifications || []);
+      const [notifRes, inboxRes] = await Promise.allSettled([
+        getMyNotifications(),
+        getInboxNotifications({ limit: 30 }),
+      ]);
+      if (notifRes.status === 'fulfilled') {
+        setNotifications(notifRes.value.data.data.notifications || []);
+      }
+      if (inboxRes.status === 'fulfilled') {
+        const inbox = inboxRes.value.data.data.notifications || [];
+        setInboxNotifs(inbox);
+        setInboxReadIds(new Set(inbox.filter((n) => n.isRead).map((n) => n.id)));
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const markRead  = (id) => {
+  const markRead = (id) => {
     setReadIds((p) => new Set([...p, id]));
     apiMarkRead(id).catch(() => {});
   };
-  const markAll   = () => {
+
+  const markInboxNotifRead = (id) => {
+    setInboxReadIds((p) => new Set([...p, id]));
+    markInboxRead(id).catch(() => {});
+  };
+
+  const markAll = () => {
     setReadIds(new Set(notifications.map((n) => n.id)));
+    setInboxReadIds(new Set(inboxNotifs.map((n) => n.id)));
     markAllNotificationsRead().catch(() => {});
+    markAllInboxRead().catch(() => {});
   };
 
   const handlePress = (n) => {
     markRead(n.id);
     if (n.apptId) {
-      // Navigate to AppointmentsTab then to AppointmentDetail
       navigation.navigate('AppointmentsTab');
-      // Small delay to let tab switch complete before pushing detail screen
       setTimeout(() => {
         navigation.navigate('AppointmentsTab', {
           screen: 'AppointmentDetail',
@@ -76,9 +102,37 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const filtered     = filter === 'All' ? notifications : notifications.filter((n) => n.category === filter);
+  // Merge inbox campaign notifications into the list as 'Updates' category
+  const campaignAsNotifs = inboxNotifs.map((n) => ({
+    id: `inbox_${n.id}`,
+    _inboxId: n.id,
+    type: 'CAMPAIGN',
+    category: 'Updates',
+    title: n.title,
+    body: n.message,
+    sub: 'From PulseMate Team',
+    time: n.createdAt,
+    read: inboxReadIds.has(n.id),
+    icon: 'megaphone-outline',
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+  }));
+
+  const allNotifications = [...notifications, ...campaignAsNotifs];
+
+  const filtered     = filter === 'All' ? allNotifications : allNotifications.filter((n) => n.category === filter);
   const todayItems   = filtered.filter((n) => isToday(n.time));
   const earlierItems = filtered.filter((n) => !isToday(n.time));
+
+  const unreadCount = allNotifications.filter((n) => !n.read && !readIds.has(n.id) && !inboxReadIds.has(n._inboxId)).length;
+
+  const handleNotifPress = (n) => {
+    if (n._inboxId) {
+      markInboxNotifRead(n._inboxId);
+    } else {
+      handlePress(n);
+    }
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -90,11 +144,20 @@ export default function NotificationsScreen({ navigation }) {
         </TouchableOpacity>
         <View style={s.headerMid}>
           <Text style={s.title}>Notifications</Text>
-          <Text style={s.subtitle}>Stay updated with your appointments and health</Text>
+          <Text style={s.subtitle}>
+            {unreadCount > 0 ? `${unreadCount} unread` : 'Stay updated with your appointments and health'}
+          </Text>
         </View>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('NotificationSettings')}>
-          <Ionicons name="settings-outline" size={20} color={colors.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {unreadCount > 0 && (
+            <TouchableOpacity style={s.iconBtn} onPress={markAll}>
+              <Ionicons name="checkmark-done-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('NotificationSettings')}>
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Filter chips ── */}
@@ -145,9 +208,9 @@ export default function NotificationsScreen({ navigation }) {
                       <NotifRow
                         key={n.id}
                         notif={n}
-                        isRead={readIds.has(n.id) || n.read}
+                        isRead={readIds.has(n.id) || inboxReadIds.has(n._inboxId) || n.read}
                         isLast={i === todayItems.length - 1}
-                        onPress={() => handlePress(n)}
+                        onPress={() => handleNotifPress(n)}
                       />
                     ))}
                   </View>
@@ -162,9 +225,9 @@ export default function NotificationsScreen({ navigation }) {
                       <NotifRow
                         key={n.id}
                         notif={n}
-                        isRead={readIds.has(n.id) || n.read}
+                        isRead={readIds.has(n.id) || inboxReadIds.has(n._inboxId) || n.read}
                         isLast={i === earlierItems.length - 1}
-                        onPress={() => handlePress(n)}
+                        onPress={() => handleNotifPress(n)}
                       />
                     ))}
                   </View>

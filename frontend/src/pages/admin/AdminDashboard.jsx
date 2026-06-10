@@ -336,6 +336,16 @@ const AdminDashboard = () => {
             title="User Management"
             description="Inspect approval state, user status, and admin levels"
           />
+          {canViewApprovals && (
+            <ActionCard
+              to="/admin/notifications"
+              icon="🔔"
+              iconBg="bg-purple-50"
+              iconColor="text-purple-600"
+              title="Notifications & Updates"
+              description="Create, send, pause, and stop user notification campaigns"
+            />
+          )}
         </div>
 
         {/* ── Root Only: Reset Database ─────────────────────────────────── */}

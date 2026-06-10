@@ -15,3 +15,13 @@ export const markNotificationRead = (notificationId) =>
 
 export const markAllNotificationsRead = () =>
   api.patch('/notifications/read-all');
+
+// ── Campaign inbox (admin-sent user notifications) ────────────────────────────
+export const getInboxNotifications = (params) =>
+  api.get('/notifications/inbox', { params });
+
+export const markInboxNotificationRead = (id) =>
+  api.patch(`/notifications/inbox/${id}/read`);
+
+export const markAllInboxNotificationsRead = () =>
+  api.patch('/notifications/inbox/read-all');

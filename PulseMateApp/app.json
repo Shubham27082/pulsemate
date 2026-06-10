@@ -49,8 +49,8 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://10.226.168.205:5000/api",
-      "apiUrlProd": "https://pulsemate-api.loca.lt/api"
+      "apiUrl": "https://generic-example-shale.ngrok-free.dev/api",
+      "apiUrlProd": "https://generic-example-shale.ngrok-free.dev/api"
     }
   }
 }

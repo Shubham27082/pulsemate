@@ -48,6 +48,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
 import ClinicVerification from './pages/admin/ClinicVerification';
 import ClinicVerificationDetail from './pages/admin/ClinicVerificationDetail';
+import AdminNotifications from './pages/admin/AdminNotifications';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import NotificationSettingsPage from './pages/notifications/NotificationSettingsPage';
 
@@ -123,6 +124,7 @@ const AppRoutes = () => {
       <Route path="/admin/clinics/verify" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerification /></ProtectedRoute>} />
       <Route path="/admin/clinics/verify/:clinicId" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><ClinicVerificationDetail /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT', 'FINANCE']}><UsersManagement /></ProtectedRoute>} />
+      <Route path="/admin/notifications" element={<ProtectedRoute roles={['SUPER_ADMIN']} adminLevels={['ROOT', 'SUPER_ADMIN', 'SUPPORT']}><AdminNotifications /></ProtectedRoute>} />
 
       <Route path="/notifications" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationsPage /></ProtectedRoute>} />
       <Route path="/notifications/settings" element={<ProtectedRoute roles={['PATIENT','DOCTOR','RECEPTIONIST','CLINIC_OWNER','SUPER_ADMIN']}><NotificationSettingsPage /></ProtectedRoute>} />

@@ -20,6 +20,7 @@ const {
 } = require('../controllers/admin.controller');
 const { authenticateUser, requireSuperAdmin, requireAdminLevel } = require('../middleware/auth.middleware');
 const { approvalSchema, adminCreateSchema, validateRequest } = require('../validations/auth.validation');
+const campaignRoutes = require('./campaign.routes');
 
 const router = express.Router();
 
@@ -46,5 +47,8 @@ router.patch('/clinics/:clinicId/suspend', requireAdminLevel('ROOT', 'SUPER_ADMI
 // ── Doctor management ──────────────────────────────────────────────────────
 router.patch('/doctors/:doctorId/approve', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), approveDoctor);
 router.patch('/doctors/:doctorId/reject', requireAdminLevel('ROOT', 'SUPER_ADMIN', 'SUPPORT'), validateRequest(approvalSchema), rejectDoctor);
+
+// ── Notification Campaigns ─────────────────────────────────────────────────
+router.use('/notifications', campaignRoutes);
 
 module.exports = router;

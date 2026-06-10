@@ -31,7 +31,8 @@ const removeFcmToken = async (req, res, next) => {
 
 /**
  * GET /api/notifications/my
- * Returns smart notifications derived from the patient's real data.
+ * Returns smart notifications derived from the patient's real data,
+ * plus any campaign UserNotification rows sent by admin.
  * Read state is persisted in NotificationRead table.
  */
 const getMyNotifications = async (req, res, next) => {
@@ -42,7 +43,7 @@ const getMyNotifications = async (req, res, next) => {
     const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
     const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-    const [todayAppts, recentAppts, user, readRows] = await Promise.all([
+    const [todayAppts, recentAppts, user, readRows, campaignNotifs] = await Promise.all([
       prisma.appointment.findMany({
         where: {
           patientId: userId,
@@ -76,6 +77,12 @@ const getMyNotifications = async (req, res, next) => {
       prisma.notificationRead.findMany({
         where: { userId },
         select: { notificationId: true },
+      }).catch(() => []),
+      // Fetch real campaign notifications for this user
+      prisma.userNotification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
       }).catch(() => []),
     ]);
 
@@ -211,6 +218,24 @@ const getMyNotifications = async (req, res, next) => {
       });
     }
 
+    // ── Admin Campaign Notifications ──────────────────────────────────────────
+    for (const cn of campaignNotifs) {
+      const cnId = `campaign_${cn.id}`;
+      notifications.push({
+        id: cnId,
+        type: 'CAMPAIGN',
+        category: 'Offers',
+        title: cn.title,
+        body: cn.message,
+        sub: '',
+        time: cn.createdAt,
+        read: cn.isRead || readSet.has(cnId),
+        icon: 'megaphone',
+        color: '#2563EB',
+        bg: '#EFF6FF',
+      });
+    }
+
     // Override read=false for any notification explicitly NOT in readSet
     // (queue/called notifications default to unread until explicitly read)
     notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -224,11 +249,22 @@ const getMyNotifications = async (req, res, next) => {
 /**
  * PATCH /api/notifications/:id/read
  * Persists notification read state in the DB.
+ * Also marks UserNotification.isRead=true for campaign_ prefixed ids.
  */
 const markNotificationRead = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const notificationId = req.params.id;
+
+    // Handle campaign notification read
+    if (notificationId.startsWith('campaign_')) {
+      const userNotifId = notificationId.replace('campaign_', '');
+      await prisma.userNotification.updateMany({
+        where: { id: userNotifId, userId },
+        data: { isRead: true },
+      }).catch(() => { });
+    }
+
     await prisma.notificationRead.upsert({
       where: { userId_notificationId: { userId, notificationId } },
       create: { userId, notificationId },
@@ -287,10 +323,79 @@ const markAllNotificationsRead = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+/**
+ * GET /api/notifications/inbox
+ * Returns paginated UserNotification rows for this user (from admin campaigns).
+ */
+const getUserCampaignNotifications = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const page = Math.max(1, parseInt(req.query.page || '1'));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20')));
+    const skip = (page - 1) * limit;
+
+    const [notifications, total, unreadCount] = await Promise.all([
+      prisma.userNotification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: { campaign: { select: { title: true, status: true } } },
+      }),
+      prisma.userNotification.count({ where: { userId } }),
+      prisma.userNotification.count({ where: { userId, isRead: false } }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Success',
+      data: { notifications, unreadCount },
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) { next(error); }
+};
+
+/**
+ * PATCH /api/notifications/inbox/:id/read
+ */
+const markCampaignNotificationRead = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    await prisma.userNotification.updateMany({
+      where: { id, userId },
+      data: { isRead: true },
+    });
+    return sendSuccess(res, {}, 'Notification marked as read');
+  } catch (error) { next(error); }
+};
+
+/**
+ * PATCH /api/notifications/inbox/read-all
+ */
+const markAllCampaignNotificationsRead = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    await prisma.userNotification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true },
+    });
+    return sendSuccess(res, {}, 'All notifications marked as read');
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   registerFcmToken,
   removeFcmToken,
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  getUserCampaignNotifications,
+  markCampaignNotificationRead,
+  markAllCampaignNotificationsRead,
 };

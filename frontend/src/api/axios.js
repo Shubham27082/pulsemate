@@ -30,6 +30,9 @@ const shouldSkipRefresh = (url = '') =>
     '/auth/clinic-owner/upload-document',
     '/auth/clinic-owner/register',
     '/auth/doctor/register',
+    '/user-auth/send-otp',
+    '/user-auth/verify-otp',
+    '/device-token/deactivate',
   ].some((path) => url.includes(path));
 
 api.interceptors.request.use((config) => {
