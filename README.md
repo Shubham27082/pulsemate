@@ -1,6 +1,6 @@
 # PulseMate — Healthcare Appointment & Live Queue Platform
 
-Production-style MVP with role-based access, OTP auth, real-time queue, and full clinic workflow.
+Production-style MVP with role-based access, OTP auth, real-time queue, push notifications, admin campaigns, and full clinic workflow.
 
 ---
 
@@ -8,7 +8,8 @@ Production-style MVP with role-based access, OTP auth, real-time queue, and full
 
 | Module | Status |
 |--------|--------|
-| OTP Auth (send/verify/login) | ✅ Done |
+| OTP Auth — SMS via 2Factor / MSG91 / Twilio | ✅ Done |
+| WhatsApp OTP (alongside SMS) | ✅ Done |
 | JWT access + refresh token rotation | ✅ Done |
 | HttpOnly cookie session | ✅ Done |
 | Role-based route protection | ✅ Done |
@@ -19,6 +20,9 @@ Production-style MVP with role-based access, OTP auth, real-time queue, and full
 | Patient booking + live queue | ✅ Done |
 | Socket.io live queue updates | ✅ Done |
 | Walk-in patient flow | ✅ Done |
+| Admin Notification Campaigns | ✅ Done |
+| Firebase push notifications (FCM) | ✅ Done |
+| In-app notification inbox (mobile) | ✅ Done |
 | Prisma schema + migrations | ✅ Done |
 | Seed data (8 users, 1 clinic) | ✅ Done |
 | Audit logging | ✅ Done |
@@ -26,40 +30,64 @@ Production-style MVP with role-based access, OTP auth, real-time queue, and full
 
 ---
 
-## 🚀 Quick Start (3 Steps)
+## 🚀 Quick Start — Pull & Run
 
 ### Prerequisites
-- Node.js 18+ (you have v20 ✓)
+- Node.js 18+
 - PostgreSQL 14+ running locally
 
 ---
 
-### Step 1 — Configure Database
+### Step 1 — Clone & install
 
-Edit `backend/.env`:
-```
-DATABASE_URL="postgresql://YOUR_USER:YOUR_PASSWORD@localhost:5432/pulsemate_db"
-```
+```bash
+git clone https://github.com/Shubham27082/pulsemate.git
+cd pulsemate
+git checkout feature/otp-campaigns-whatsapp
 
-Create the database in PostgreSQL:
-```sql
-CREATE DATABASE pulsemate_db;
+cd backend && npm install
+cd ../frontend && npm install
+cd ../PulseMateApp && npm install
 ```
 
 ---
 
-### Step 2 — Setup Database & Seed
+### Step 2 — Configure environment
 
-Double-click **`setup-database.bat`** OR run manually:
 ```bash
 cd backend
-npm install
+cp .env.example .env
+```
+
+Open `backend/.env` and set at minimum:
+
+```env
+DATABASE_URL="postgresql://YOUR_USER:YOUR_PASSWORD@localhost:5432/pulsemate_db"
+```
+
+Everything else has safe defaults for local dev:
+- `SMS_PROVIDER=mock` — OTP prints to backend terminal, no SMS account needed
+- `EMAIL_PROVIDER=console` — emails print to terminal
+- Razorpay, Firebase — leave blank, features gracefully degrade
+
+---
+
+### Step 3 — Setup database
+
+Create the database in PostgreSQL first:
+```sql
+CREATE DATABASE pulsemate_db;
+```
+
+Then run migrations and seed:
+```bash
+cd backend
 npx prisma generate
 npx prisma migrate deploy
 node prisma/seed.js
 ```
 
-For future schema changes during development, create a new migration after editing `schema.prisma`:
+For future schema changes, create a new migration after editing `schema.prisma`:
 ```bash
 cd backend
 npx prisma migrate dev --name your_change_name
@@ -67,7 +95,7 @@ npx prisma migrate dev --name your_change_name
 
 ---
 
-### Step 3 — Start Both Servers
+### Step 4 — Start servers
 
 **Terminal 1 — Backend:**
 ```bash
@@ -79,9 +107,16 @@ npm run dev
 **Terminal 2 — Frontend:**
 ```bash
 cd frontend
-npm install
-npx vite
+npm run dev
 # Runs on http://localhost:3000
+```
+
+**Terminal 3 — Mobile app (optional):**
+```bash
+cd PulseMateApp
+npx expo start
+# Scan QR with Expo Go app on the same WiFi
+# Cross-network (phone on different WiFi/data): npx expo start --tunnel
 ```
 
 Open **http://localhost:3000** in your browser.
@@ -260,14 +295,24 @@ Room format: `queue:{clinicId}:{doctorId}:{YYYY-MM-DD}`
 
 ## 📱 OTP Providers
 
-Set `OTP_PROVIDER` in `backend/.env`:
+Set `SMS_PROVIDER` in `backend/.env`:
 
 | Value | Description |
 |-------|-------------|
-| `console` | Dev mode — prints OTP to terminal (default) |
-| `twilio` | Twilio SMS — fill `TWILIO_*` vars |
-| `msg91` | MSG91 — fill `MSG91_*` vars |
-| `fast2sms` | Fast2SMS — fill `FAST2SMS_API_KEY` |
+| `mock` | Dev mode — prints OTP to terminal, no account needed (default) |
+| `2factor` | 2Factor.in — simple India SMS, sign up at https://2factor.in |
+| `msg91` | MSG91 — India production, sign up at https://msg91.com |
+| `twilio` | Twilio — international SMS, sign up at https://twilio.com |
+
+### WhatsApp OTP (optional)
+
+Set `WHATSAPP_PROVIDER` to send OTP on **both SMS and WhatsApp** simultaneously:
+
+| Value | Description |
+|-------|-------------|
+| _(blank)_ | WhatsApp disabled (default) |
+| `2factor` | 2Factor WhatsApp — uses same `SMS_API_KEY`, enable in 2factor.in dashboard |
+| `twilio` | Twilio WhatsApp — requires `TWILIO_WHATSAPP_FROM` number |
 
 ---
 
